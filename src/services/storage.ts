@@ -286,6 +286,26 @@ export async function executeSaleTransaction(data: SaleTransactionData): Promise
   })
 }
 
+export interface ReturnTransactionData {
+  sale: Sale
+  movements: InventoryMovement[]
+  /** Productos a reingresar al stock (incremento relativo) */
+  restock: { productId: string; quantity: number }[]
+}
+
+export async function executeReturnTransaction(data: ReturnTransactionData): Promise<void> {
+  await db.transaction('rw', db.products, db.sales, db.inventoryMovements, async () => {
+    for (const r of data.restock) {
+      const product = await db.products.get(r.productId)
+      if (product) await db.products.update(r.productId, { stock: product.stock + r.quantity })
+    }
+    await db.sales.put(data.sale)
+    for (const movement of data.movements) {
+      await db.inventoryMovements.put(movement)
+    }
+  })
+}
+
 export interface StockAdjustmentData {
   product: Product
   movement: InventoryMovement

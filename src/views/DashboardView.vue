@@ -70,7 +70,10 @@ onMounted(async () => {
           {{ formatCurrency(salesStore.totalRevenue) }}
         </p>
         <p class="mt-1 text-sm text-zinc-500">
-          {{ salesStore.sales.length }} ventas registradas
+          {{ salesStore.sales.length }} ventas registradas · ingreso neto
+        </p>
+        <p v-if="salesStore.returnsCount > 0" class="mt-2 text-sm text-danger">
+          −{{ formatCurrency(salesStore.refundedTotalAll) }} en {{ salesStore.returnsCount }} devolución(es)
         </p>
       </div>
 

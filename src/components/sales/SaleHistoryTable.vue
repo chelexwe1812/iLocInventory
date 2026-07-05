@@ -68,9 +68,17 @@ function pendingBalance(sale: Sale): number {
               Saldo {{ formatCurrency(pendingBalance(sale)) }}
               <template v-if="sale.creditDueDate"> · vence {{ formatDate(sale.creditDueDate) }}</template>
             </p>
+            <p v-if="sale.returnStatus" class="mt-1 text-xs text-danger">
+              {{ sale.returnStatus === 'full' ? 'Devuelta' : 'Devuelta parcial' }}
+            </p>
           </td>
           <td class="px-4 py-3 text-right font-medium text-zinc-100">
-            {{ formatCurrency(sale.total) }}
+            <span :class="sale.returnStatus ? 'text-zinc-500 line-through' : ''">
+              {{ formatCurrency(sale.total) }}
+            </span>
+            <p v-if="(sale.refundedTotal ?? 0) > 0" class="text-xs font-normal text-zinc-400">
+              neto {{ formatCurrency(sale.total - (sale.refundedTotal ?? 0)) }}
+            </p>
           </td>
           <td class="px-4 py-3 text-right" @click.stop>
             <SalePdfButton :sale="sale" compact />

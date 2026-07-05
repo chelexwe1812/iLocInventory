@@ -1,6 +1,22 @@
 import { computed, ref } from 'vue'
-import type { DiscountType, PaymentMethod, Product, Sale, SaleFilters, SaleItem } from '@/types'
-import { executeSaleTransaction, getAllSales, saveSale } from '@/services/storage'
+import type {
+  DiscountType,
+  InventoryMovement,
+  PaymentMethod,
+  Product,
+  RefundMethod,
+  Sale,
+  SaleFilters,
+  SaleItem,
+  SaleReturn,
+  SaleReturnItem,
+} from '@/types'
+import {
+  executeReturnTransaction,
+  executeSaleTransaction,
+  getAllSales,
+  saveSale,
+} from '@/services/storage'
 import { generateId } from '@/utils/id'
 import { getConditionLabel } from '@/utils/product'
 import { isAfter, isBefore, parseISO, startOfDay, startOfWeek } from 'date-fns'
@@ -78,11 +94,22 @@ export function useSales() {
     return sales.value.filter((s) => !isBefore(parseISO(s.date), weekStart))
   })
 
-  const totalRevenue = computed(() => sales.value.reduce((sum, s) => sum + s.total, 0))
+  // Ingreso neto = total de la venta menos lo reembolsado por devoluciones.
+  const netTotal = (s: Sale) => s.total - (s.refundedTotal ?? 0)
 
-  const revenueToday = computed(() => salesToday.value.reduce((sum, s) => sum + s.total, 0))
+  const totalRevenue = computed(() => sales.value.reduce((sum, s) => sum + netTotal(s), 0))
 
-  const revenueWeek = computed(() => salesWeek.value.reduce((sum, s) => sum + s.total, 0))
+  const revenueToday = computed(() => salesToday.value.reduce((sum, s) => sum + netTotal(s), 0))
+
+  const revenueWeek = computed(() => salesWeek.value.reduce((sum, s) => sum + netTotal(s), 0))
+
+  const refundedTotalAll = computed(() =>
+    sales.value.reduce((sum, s) => sum + (s.refundedTotal ?? 0), 0),
+  )
+
+  const returnsCount = computed(() =>
+    sales.value.reduce((sum, s) => sum + (s.returns?.length ?? 0), 0),
+  )
 
   function validateCart(cart: CartItem[]): { valid: boolean; errors: string[] } {
     const errors: string[] = []
@@ -281,6 +308,98 @@ export function useSales() {
     return updated
   }
 
+  /** Cantidad ya devuelta de un producto en una venta. */
+  function returnedQty(sale: Sale, productId: string): number {
+    return (sale.returns ?? []).reduce(
+      (sum, r) => sum + r.items.filter((i) => i.productId === productId).reduce((s, i) => s + i.quantity, 0),
+      0,
+    )
+  }
+
+  /**
+   * Registra una devolución (total o parcial) de una venta.
+   * En ventas a crédito el reembolso reduce primero el saldo pendiente y solo
+   * el excedente se devuelve en efectivo. Los ítems reingresados suman al stock.
+   */
+  async function registerReturn(
+    saleId: string,
+    data: {
+      items: SaleReturnItem[]
+      refundAmount: number
+      refundMethod: RefundMethod
+      reason: string
+      notes?: string
+    },
+  ): Promise<Sale> {
+    const existing = sales.value.find((s) => s.id === saleId)
+    if (!existing) throw new Error('Venta no encontrada')
+    const items = data.items.filter((i) => i.quantity > 0)
+    if (items.length === 0) throw new Error('Selecciona al menos un producto a devolver')
+
+    const now = new Date().toISOString()
+    const refundAmount = Math.max(data.refundAmount, 0)
+
+    // Crédito: reducir el saldo primero, reembolsar el excedente.
+    let balanceApplied = 0
+    let newCreditBalance = existing.creditBalance
+    let creditPaid = existing.creditPaid
+    if (existing.paymentMethod === 'credito') {
+      const balance = existing.creditBalance ?? 0
+      balanceApplied = Math.min(refundAmount, balance)
+      newCreditBalance = balance - balanceApplied
+      creditPaid = newCreditBalance <= 0
+    }
+
+    const saleReturn: SaleReturn = {
+      id: generateId(),
+      date: now,
+      items,
+      refundAmount,
+      balanceApplied,
+      refundMethod: data.refundMethod,
+      reason: data.reason,
+      notes: data.notes,
+    }
+
+    const returns = [...(existing.returns ?? []), saleReturn]
+    const refundedTotal = (existing.refundedTotal ?? 0) + refundAmount
+
+    const returnedByProduct = new Map<string, number>()
+    for (const r of returns) {
+      for (const it of r.items) {
+        returnedByProduct.set(it.productId, (returnedByProduct.get(it.productId) ?? 0) + it.quantity)
+      }
+    }
+    const fullyReturned = existing.items.every(
+      (it) => (returnedByProduct.get(it.productId) ?? 0) >= it.quantity,
+    )
+
+    const updated: Sale = toPlainSale({
+      ...existing,
+      returns,
+      refundedTotal,
+      returnStatus: fullyReturned ? 'full' : 'partial',
+      creditBalance: newCreditBalance,
+      creditPaid,
+    })
+
+    const restockItems = items.filter((i) => i.restocked)
+    const movements: InventoryMovement[] = restockItems.map((i) => ({
+      id: generateId(),
+      date: now,
+      type: 'in' as const,
+      productId: i.productId,
+      quantity: i.quantity,
+      reason: 'Devolución',
+      relatedSaleId: saleId,
+    }))
+    const restock = restockItems.map((i) => ({ productId: i.productId, quantity: i.quantity }))
+
+    await executeReturnTransaction({ sale: updated, movements, restock })
+    await loadSales()
+    return updated
+  }
+
   return {
     sales,
     loading,
@@ -289,6 +408,8 @@ export function useSales() {
     totalRevenue,
     revenueToday,
     revenueWeek,
+    refundedTotalAll,
+    returnsCount,
     loadSales,
     filterSales,
     validateCart,
@@ -298,5 +419,7 @@ export function useSales() {
     createSale,
     updateSale,
     registerCreditPayment,
+    returnedQty,
+    registerReturn,
   }
 }

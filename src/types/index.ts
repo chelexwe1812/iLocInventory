@@ -54,6 +54,33 @@ export interface TradeInItem {
   unitValue: number
 }
 
+export type RefundMethod = 'efectivo' | 'tarjeta' | 'transferencia'
+
+export interface SaleReturnItem {
+  productId: string
+  productName: string
+  quantity: number
+  /** Monto reembolsado por unidad (precio pagado con descuento prorrateado) */
+  refundPerUnit: number
+  /** Si el producto se reingresó al inventario (revendible) */
+  restocked: boolean
+}
+
+/** Devolución (total o parcial) de una venta */
+export interface SaleReturn {
+  id: string
+  date: string
+  items: SaleReturnItem[]
+  /** Monto total reembolsado al cliente (editable por cargos/parciales) */
+  refundAmount: number
+  /** Parte del reembolso aplicada a reducir el saldo de una venta a crédito */
+  balanceApplied: number
+  /** Método del reembolso en efectivo (excedente tras aplicar a saldo) */
+  refundMethod: RefundMethod
+  reason: string
+  notes?: string
+}
+
 export interface Contact {
   id: string
   name: string
@@ -94,6 +121,12 @@ export interface Sale {
   creditPaid?: boolean
   /** Abonos registrados después de la venta (para saldar el crédito) */
   creditPayments?: { date: string; amount: number }[]
+  /** Devoluciones registradas contra esta venta */
+  returns?: SaleReturn[]
+  /** Suma reembolsada por devoluciones (reduce el ingreso neto) */
+  refundedTotal?: number
+  /** Estado de devolución de la venta */
+  returnStatus?: 'partial' | 'full'
   notes?: string
   createdAt: string
 }

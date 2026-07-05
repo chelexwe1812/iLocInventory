@@ -5,6 +5,7 @@ import SaleHistoryTable from '@/components/sales/SaleHistoryTable.vue'
 import SaleDetailSidebar from '@/components/sales/SaleDetailSidebar.vue'
 import SaleEditModal from '@/components/sales/SaleEditModal.vue'
 import CreditPaymentModal from '@/components/sales/CreditPaymentModal.vue'
+import SaleReturnModal from '@/components/sales/SaleReturnModal.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useSalesStore } from '@/stores/sales'
 import { formatCurrency } from '@/utils/format'
@@ -33,6 +34,7 @@ const selectedSale = ref<Sale | null>(null)
 const detailOpen = ref(false)
 const editOpen = ref(false)
 const payOpen = ref(false)
+const returnOpen = ref(false)
 
 function openSale(sale: Sale) {
   selectedSale.value = sale
@@ -86,8 +88,10 @@ onMounted(() => salesStore.loadSales())
       :sale="selectedSale"
       @edit="editOpen = true"
       @pay="payOpen = true"
+      @return="returnOpen = true"
     />
     <SaleEditModal v-model="editOpen" :sale="selectedSale" @saved="onSaleSaved" />
     <CreditPaymentModal v-model="payOpen" :sale="selectedSale" @saved="onSaleSaved" />
+    <SaleReturnModal v-model="returnOpen" :sale="selectedSale" @saved="onSaleSaved" />
   </div>
 </template>

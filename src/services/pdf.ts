@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import type { Sale } from '@/types'
+import type { Sale, SaleReturn } from '@/types'
 import { formatCurrency, formatDate, formatDateTime } from '@/utils/format'
 
 const STORE_NAME = 'iLoc — Celulares y Accesorios'
@@ -168,4 +168,98 @@ export function generateSaleReceipt(sale: Sale): jsPDF {
 export function downloadSaleReceipt(sale: Sale): void {
   const doc = generateSaleReceipt(sale)
   doc.save(`ticket-${sale.id.slice(0, 8)}.pdf`)
+}
+
+const REFUND_LABELS: Record<string, string> = {
+  efectivo: 'Efectivo',
+  tarjeta: 'Tarjeta',
+  transferencia: 'Transferencia',
+}
+
+export function generateReturnReceipt(sale: Sale, ret: SaleReturn): jsPDF {
+  const doc = new jsPDF({ unit: 'mm', format: [80, 200] })
+  const pageWidth = doc.internal.pageSize.getWidth()
+  let y = 10
+
+  doc.setFontSize(12)
+  doc.setFont('helvetica', 'bold')
+  doc.text(STORE_NAME, pageWidth / 2, y, { align: 'center' })
+  y += 5
+  doc.setFontSize(9)
+  doc.text('NOTA DE DEVOLUCIÓN', pageWidth / 2, y, { align: 'center' })
+  y += 7
+
+  doc.setFontSize(7)
+  doc.setFont('helvetica', 'normal')
+  doc.text(`Ticket venta #${sale.id.slice(0, 8).toUpperCase()}`, 5, y)
+  y += 4
+  doc.text(formatDateTime(ret.date), 5, y)
+  y += 4
+  if (sale.customerName) {
+    doc.text(`Cliente: ${sale.customerName}`, 5, y)
+    y += 4
+  }
+
+  y += 2
+  doc.setLineWidth(0.2)
+  doc.line(5, y, pageWidth - 5, y)
+  y += 4
+
+  autoTable(doc, {
+    startY: y,
+    head: [['Producto', 'Cant', 'Sub']],
+    body: ret.items.map((it) => [
+      (it.productName.length > 24 ? it.productName.slice(0, 24) + '…' : it.productName) +
+        (it.restocked ? '' : ' (sin reingresar)'),
+      String(it.quantity),
+      formatCurrency(it.refundPerUnit * it.quantity),
+    ]),
+    theme: 'plain',
+    styles: { fontSize: 7, cellPadding: 1 },
+    headStyles: { fontStyle: 'bold', fillColor: [240, 240, 240], textColor: [0, 0, 0] },
+    columnStyles: {
+      0: { cellWidth: 42 },
+      1: { cellWidth: 10, halign: 'center' },
+      2: { cellWidth: 18, halign: 'right' },
+    },
+    margin: { left: 5, right: 5 },
+  })
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  y = (doc as any).lastAutoTable.finalY + 6
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(10)
+  doc.text('REEMBOLSO:', 5, y)
+  doc.text(formatCurrency(ret.refundAmount), pageWidth - 5, y, { align: 'right' })
+  y += 6
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  if (ret.balanceApplied > 0) {
+    doc.text('Aplicado al saldo:', 5, y)
+    doc.text(formatCurrency(ret.balanceApplied), pageWidth - 5, y, { align: 'right' })
+    y += 4
+    doc.text('Devuelto en efectivo:', 5, y)
+    doc.text(formatCurrency(ret.refundAmount - ret.balanceApplied), pageWidth - 5, y, {
+      align: 'right',
+    })
+    y += 5
+  }
+  doc.text(`Método: ${REFUND_LABELS[ret.refundMethod] ?? ret.refundMethod}`, 5, y)
+  y += 4
+  doc.text(`Motivo: ${ret.reason}`, 5, y, { maxWidth: pageWidth - 10 })
+  y += 6
+
+  if (ret.notes) {
+    doc.setFontSize(7)
+    doc.text(`Notas: ${ret.notes}`, 5, y, { maxWidth: pageWidth - 10 })
+  }
+
+  return doc
+}
+
+export function downloadReturnReceipt(sale: Sale, ret: SaleReturn): void {
+  const doc = generateReturnReceipt(sale, ret)
+  doc.save(`devolucion-${sale.id.slice(0, 8)}-${ret.id.slice(0, 6)}.pdf`)
 }

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue'
-import { X, User, Phone, Calendar, StickyNote, Pencil, Wallet } from 'lucide-vue-next'
+import { X, User, Phone, Calendar, StickyNote, Pencil, Wallet, RotateCcw, FileDown } from 'lucide-vue-next'
 import type { Sale } from '@/types'
 import { formatCurrency, formatDate, formatDateTime } from '@/utils/format'
+import { downloadReturnReceipt } from '@/services/pdf'
 import SalePdfButton from './SalePdfButton.vue'
 
 const props = defineProps<{
@@ -14,7 +15,19 @@ const open = defineModel<boolean>({ required: true })
 const emit = defineEmits<{
   edit: [sale: Sale]
   pay: [sale: Sale]
+  return: [sale: Sale]
 }>()
+
+function returnedQty(productId: string): number {
+  return (props.sale?.returns ?? []).reduce(
+    (sum, r) =>
+      sum + r.items.filter((i) => i.productId === productId).reduce((s, i) => s + i.quantity, 0),
+    0,
+  )
+}
+const returnable = computed(
+  () => !!props.sale && props.sale.items.some((it) => returnedQty(it.productId) < it.quantity),
+)
 
 const paymentLabels: Record<string, string> = {
   efectivo: 'Efectivo',
@@ -77,6 +90,12 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
                   class="rounded bg-warning/15 px-1.5 py-0.5 text-[10px] font-medium text-warning"
                 >
                   Pendiente
+                </span>
+                <span
+                  v-if="sale.returnStatus"
+                  class="rounded bg-danger/15 px-1.5 py-0.5 text-[10px] font-medium text-danger"
+                >
+                  {{ sale.returnStatus === 'full' ? 'Devuelta' : 'Devuelta parcial' }}
                 </span>
               </div>
               <p class="mt-1 flex items-center gap-1.5 text-sm text-zinc-400">
@@ -223,6 +242,49 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
               </div>
             </section>
 
+            <!-- Devoluciones -->
+            <section v-if="sale.returns?.length" class="border-b border-border px-6 py-5">
+              <div class="mb-3 flex items-center justify-between">
+                <h3 class="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                  Devoluciones
+                </h3>
+                <span class="text-xs text-danger">−{{ formatCurrency(sale.refundedTotal ?? 0) }}</span>
+              </div>
+              <div class="space-y-3">
+                <div
+                  v-for="ret in sale.returns"
+                  :key="ret.id"
+                  class="rounded-lg border border-border bg-surface-overlay/50 p-3"
+                >
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs text-zinc-400">{{ formatDateTime(ret.date) }}</span>
+                    <button
+                      type="button"
+                      class="inline-flex items-center gap-1 rounded p-1 text-xs text-zinc-400 transition hover:text-accent"
+                      title="Nota de devolución PDF"
+                      @click="downloadReturnReceipt(sale, ret)"
+                    >
+                      <FileDown :size="14" /> Nota
+                    </button>
+                  </div>
+                  <div v-for="it in ret.items" :key="it.productId" class="mt-1 flex justify-between text-sm">
+                    <span class="min-w-0 truncate text-zinc-300">
+                      {{ it.productName }} × {{ it.quantity }}
+                      <span v-if="!it.restocked" class="text-danger">· sin reingresar</span>
+                    </span>
+                    <span class="shrink-0 text-zinc-400">{{ formatCurrency(it.refundPerUnit * it.quantity) }}</span>
+                  </div>
+                  <div class="mt-1.5 flex items-center justify-between border-t border-border pt-1.5 text-xs">
+                    <span class="text-zinc-500">{{ ret.reason }} · {{ ret.refundMethod }}</span>
+                    <span class="font-medium text-danger">−{{ formatCurrency(ret.refundAmount) }}</span>
+                  </div>
+                  <p v-if="ret.balanceApplied > 0" class="mt-1 text-xs text-zinc-500">
+                    Aplicado al saldo: {{ formatCurrency(ret.balanceApplied) }}
+                  </p>
+                </div>
+              </div>
+            </section>
+
             <!-- Notas -->
             <section v-if="sale.notes" class="border-b border-border px-6 py-5">
               <h3 class="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-zinc-500">
@@ -250,6 +312,14 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
                 @click="emit('edit', sale)"
               >
                 <Pencil :size="15" /> Editar
+              </button>
+              <button
+                v-if="returnable"
+                type="button"
+                class="flex flex-1 items-center justify-center gap-2 rounded-lg border border-danger/40 px-3 py-2 text-sm text-danger transition hover:bg-danger/10"
+                @click="emit('return', sale)"
+              >
+                <RotateCcw :size="15" /> Devolución
               </button>
               <SalePdfButton :sale="sale" label="Ticket" />
             </div>
