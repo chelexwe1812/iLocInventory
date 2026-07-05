@@ -41,7 +41,7 @@ const showContactForm = ref(false)
 
 const contactResults = computed(() => {
   if (!contactSearchQuery.value.trim()) return []
-  return contactsStore.searchContacts(contactSearchQuery.value)
+  return contactsStore.searchCustomers(contactSearchQuery.value)
 })
 
 const selectedContact = computed(() =>
@@ -854,7 +854,7 @@ const paymentMethods: { value: PaymentMethod; label: string }[] = [
       @save="handleCreateTradeInProduct"
     />
 
-    <ContactFormModal v-model="showContactForm" @save="handleCreateContact" />
+    <ContactFormModal v-model="showContactForm" lock-customer @save="handleCreateContact" />
   </div>
 </template>
 

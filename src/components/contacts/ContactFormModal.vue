@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import type { Contact, ContactFormData } from '@/types'
+import type { Contact, ContactFormData, ContactType } from '@/types'
 import AppModal from '@/components/common/AppModal.vue'
 
 const props = defineProps<{
   /** Contacto a editar; si es null/undefined el modal crea uno nuevo */
   contact?: Contact | null
+  /** Oculta el selector de tipo y fuerza "cliente" (usado desde el flujo de ventas) */
+  lockCustomer?: boolean
+  /** Oculta el selector de tipo y fuerza "proveedor" (usado desde pedidos de compra) */
+  lockSupplier?: boolean
 }>()
 
 const open = defineModel<boolean>({ required: true })
@@ -17,11 +21,16 @@ const emit = defineEmits<{
 const name = ref('')
 const phone = ref('')
 const notes = ref('')
+const type = ref<ContactType>('customer')
+
+const lockedType = (): ContactType | null =>
+  props.lockSupplier ? 'supplier' : props.lockCustomer ? 'customer' : null
 
 function resetForm() {
   name.value = props.contact?.name ?? ''
   phone.value = props.contact?.phone ?? ''
   notes.value = props.contact?.notes ?? ''
+  type.value = lockedType() ?? props.contact?.type ?? 'customer'
 }
 
 // Rellena el formulario cada vez que se abre (nuevo o edición).
@@ -33,6 +42,7 @@ function handleSave() {
   if (!name.value.trim()) return
   emit('save', {
     name: name.value.trim(),
+    type: lockedType() ?? type.value,
     phone: phone.value.trim() || undefined,
     notes: notes.value.trim() || undefined,
   })
@@ -42,6 +52,35 @@ function handleSave() {
 <template>
   <AppModal v-model="open" :title="contact ? 'Editar contacto' : 'Nuevo contacto'" size="sm">
     <div class="space-y-4">
+      <div v-if="!lockCustomer && !lockSupplier">
+        <label class="mb-1 block text-sm text-zinc-400">Tipo</label>
+        <div class="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            class="rounded-lg border px-3 py-2 text-sm transition"
+            :class="
+              type === 'customer'
+                ? 'border-accent bg-accent/15 text-accent'
+                : 'border-border text-zinc-400 hover:bg-surface-overlay'
+            "
+            @click="type = 'customer'"
+          >
+            Cliente
+          </button>
+          <button
+            type="button"
+            class="rounded-lg border px-3 py-2 text-sm transition"
+            :class="
+              type === 'supplier'
+                ? 'border-accent bg-accent/15 text-accent'
+                : 'border-border text-zinc-400 hover:bg-surface-overlay'
+            "
+            @click="type = 'supplier'"
+          >
+            Proveedor
+          </button>
+        </div>
+      </div>
       <div>
         <label class="mb-1 block text-sm text-zinc-400">Nombre *</label>
         <input

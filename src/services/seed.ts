@@ -1,4 +1,4 @@
-import type { Order, Product } from '@/types'
+import type { Contact, Product } from '@/types'
 import { generateId } from '@/utils/id'
 import { db, isSeeded, markSeeded } from './storage'
 
@@ -265,28 +265,22 @@ const seedProducts: Product[] = [
   }),
 ]
 
-const seedOrders: Order[] = [
+const seedSuppliers: Contact[] = [
   {
     id: generateId(),
-    date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    customerName: 'Carlos Méndez',
-    customerPhone: '555-1234',
-    items: [
-      { productName: 'iPhone 15 Pro Titanio Natural 256GB', quantity: 1 },
-      { productName: 'Funda iPhone 15 Silicona', quantity: 1 },
-    ],
-    status: 'pending',
-    notes: 'Cliente prefiere entrega el viernes',
+    name: 'Distribuidora TecnoMayoreo',
+    type: 'supplier',
+    phone: '555-8080',
+    notes: 'Mayorista de equipos nuevos Apple y Samsung',
     createdAt: now,
     updatedAt: now,
   },
   {
     id: generateId(),
-    date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-    customerName: 'Ana Rodríguez',
-    customerPhone: '555-5678',
-    items: [{ productName: 'Galaxy S24 Gris 256GB', quantity: 1 }],
-    status: 'pending',
+    name: 'Importaciones GadgetPro',
+    type: 'supplier',
+    phone: '555-9090',
+    notes: 'Accesorios y equipos de segunda mano',
     createdAt: now,
     updatedAt: now,
   },
@@ -295,9 +289,9 @@ const seedOrders: Order[] = [
 export async function seedDatabaseIfNeeded(): Promise<void> {
   if (await isSeeded()) return
 
-  await db.transaction('rw', db.products, db.orders, async () => {
+  await db.transaction('rw', db.products, db.contacts, async () => {
     await db.products.bulkAdd(seedProducts)
-    await db.orders.bulkAdd(seedOrders)
+    await db.contacts.bulkAdd(seedSuppliers)
   })
 
   await markSeeded()

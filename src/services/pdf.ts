@@ -1,7 +1,8 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import type { Sale, SaleReturn } from '@/types'
+import type { PurchaseOrder, Sale, SaleReturn } from '@/types'
 import { formatCurrency, formatDate, formatDateTime } from '@/utils/format'
+import { CONDITION_LABELS } from '@/utils/product'
 
 const STORE_NAME = 'iLoc — Celulares y Accesorios'
 const STORE_PHONE = 'Tel: (55) 1234-5678'
@@ -262,4 +263,101 @@ export function generateReturnReceipt(sale: Sale, ret: SaleReturn): jsPDF {
 export function downloadReturnReceipt(sale: Sale, ret: SaleReturn): void {
   const doc = generateReturnReceipt(sale, ret)
   doc.save(`devolucion-${sale.id.slice(0, 8)}-${ret.id.slice(0, 6)}.pdf`)
+}
+
+function purchaseItemName(item: PurchaseOrder['items'][number]): string {
+  return [item.brand, item.model, item.variant].filter(Boolean).join(' ')
+}
+
+export function generatePurchaseOrder(order: PurchaseOrder): jsPDF {
+  const doc = new jsPDF({ unit: 'mm', format: 'letter' })
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const marginX = 15
+  let y = 18
+
+  doc.setFontSize(14)
+  doc.setFont('helvetica', 'bold')
+  doc.text(STORE_NAME, marginX, y)
+
+  doc.setFontSize(16)
+  doc.text('ORDEN DE COMPRA', pageWidth - marginX, y, { align: 'right' })
+
+  y += 5
+  doc.setFontSize(9)
+  doc.setFont('helvetica', 'normal')
+  doc.text(STORE_PHONE, marginX, y)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(11)
+  doc.text(order.code, pageWidth - marginX, y, { align: 'right' })
+
+  y += 8
+  doc.setLineWidth(0.3)
+  doc.line(marginX, y, pageWidth - marginX, y)
+  y += 8
+
+  doc.setFontSize(10)
+  doc.setFont('helvetica', 'bold')
+  doc.text('Proveedor', marginX, y)
+  doc.text('Fecha', pageWidth - marginX - 45, y)
+  y += 5
+  doc.setFont('helvetica', 'normal')
+  doc.text(order.supplierName || '—', marginX, y)
+  doc.text(formatDate(order.date), pageWidth - marginX - 45, y)
+  y += 5
+  if (order.expectedDate) {
+    doc.setFont('helvetica', 'bold')
+    doc.text('Entrega estimada', pageWidth - marginX - 45, y)
+    doc.setFont('helvetica', 'normal')
+    doc.text(formatDate(order.expectedDate), pageWidth - marginX, y, { align: 'right' })
+    y += 5
+  }
+
+  y += 4
+  autoTable(doc, {
+    startY: y,
+    head: [['Modelo', 'Condición', 'Cant.', 'Costo unit.', 'Subtotal']],
+    body: order.items.map((item) => [
+      purchaseItemName(item),
+      CONDITION_LABELS[item.condition],
+      String(item.quantity),
+      formatCurrency(item.unitCost),
+      formatCurrency(item.unitCost * item.quantity),
+    ]),
+    theme: 'striped',
+    styles: { fontSize: 9, cellPadding: 2 },
+    headStyles: { fontStyle: 'bold', fillColor: [37, 37, 37], textColor: [255, 255, 255] },
+    columnStyles: {
+      0: { cellWidth: 'auto' },
+      1: { cellWidth: 28 },
+      2: { cellWidth: 16, halign: 'center' },
+      3: { cellWidth: 28, halign: 'right' },
+      4: { cellWidth: 28, halign: 'right' },
+    },
+    margin: { left: marginX, right: marginX },
+  })
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  y = (doc as any).lastAutoTable.finalY + 8
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
+  doc.text('TOTAL:', pageWidth - marginX - 40, y)
+  doc.text(formatCurrency(order.total), pageWidth - marginX, y, { align: 'right' })
+  y += 10
+
+  if (order.notes) {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.text('Notas:', marginX, y)
+    y += 5
+    doc.setFont('helvetica', 'normal')
+    doc.text(order.notes, marginX, y, { maxWidth: pageWidth - marginX * 2 })
+  }
+
+  return doc
+}
+
+export function downloadPurchaseOrder(order: PurchaseOrder): void {
+  const doc = generatePurchaseOrder(order)
+  doc.save(`${order.code}.pdf`)
 }

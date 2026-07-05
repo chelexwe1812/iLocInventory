@@ -5,20 +5,18 @@ import {
   LayoutDashboard,
   Package,
   ShoppingCart,
-  ClipboardList,
   Settings,
   Smartphone,
   ChevronLeft,
   History,
   Users,
+  Truck,
 } from 'lucide-vue-next'
 import { useAppStore } from '@/stores/app'
-import { useOrdersStore } from '@/stores/orders'
 import { storeToRefs } from 'pinia'
 
 const route = useRoute()
 const appStore = useAppStore()
-const ordersStore = useOrdersStore()
 const { sidebarCollapsed } = storeToRefs(appStore)
 
 const navItems = computed(() => [
@@ -26,13 +24,7 @@ const navItems = computed(() => [
   { name: 'inventory', label: 'Inventario', icon: Package, path: '/inventario' },
   { name: 'sales', label: 'Nueva Venta', icon: ShoppingCart, path: '/ventas' },
   { name: 'sales-history', label: 'Ventas', icon: History, path: '/ventas/historial' },
-  {
-    name: 'orders',
-    label: 'Pedidos',
-    icon: ClipboardList,
-    path: '/pedidos',
-    badge: ordersStore.pendingOrders.length || undefined,
-  },
+  { name: 'purchase-orders', label: 'Pedidos de Compra', icon: Truck, path: '/compras' },
   { name: 'contacts', label: 'Contactos', icon: Users, path: '/contactos' },
   { name: 'settings', label: 'Configuración', icon: Settings, path: '/configuracion' },
 ])
@@ -72,12 +64,6 @@ function isActive(name: string): boolean {
       >
         <component :is="item.icon" :size="18" class="shrink-0" />
         <span v-if="!sidebarCollapsed" class="flex-1">{{ item.label }}</span>
-        <span
-          v-if="!sidebarCollapsed && item.badge"
-          class="rounded-full bg-warning/20 px-2 py-0.5 text-xs font-medium text-warning"
-        >
-          {{ item.badge }}
-        </span>
       </RouterLink>
     </nav>
 

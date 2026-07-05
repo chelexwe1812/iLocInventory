@@ -5,14 +5,12 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { useStorage } from '@/composables/useStorage'
 import { useProductsStore } from '@/stores/products'
 import { useSalesStore } from '@/stores/sales'
-import { useOrdersStore } from '@/stores/orders'
 import { useAppStore } from '@/stores/app'
 import type { ExportData } from '@/services/storage'
 
 const { backend, exportData, importData, resetData } = useStorage()
 const productsStore = useProductsStore()
 const salesStore = useSalesStore()
-const ordersStore = useOrdersStore()
 const appStore = useAppStore()
 
 const showResetConfirm = ref(false)
@@ -72,7 +70,6 @@ async function handleImportJson(event: Event) {
     await Promise.all([
       productsStore.loadProducts(),
       salesStore.loadSales(),
-      ordersStore.loadOrders(),
     ])
     appStore.showToast('Datos importados correctamente', 'success')
   } catch (e) {
@@ -89,7 +86,6 @@ async function handleReset() {
     await Promise.all([
       productsStore.loadProducts(),
       salesStore.loadSales(),
-      ordersStore.loadOrders(),
     ])
     appStore.showToast('Datos restablecidos con datos de prueba', 'success')
   } catch {
@@ -134,7 +130,9 @@ async function handleReset() {
           <Download :size="18" class="text-accent" />
           <div>
             <p class="font-medium text-zinc-200">Exportar todo (JSON)</p>
-            <p class="text-xs text-zinc-500">Productos, ventas, movimientos y pedidos</p>
+            <p class="text-xs text-zinc-500">
+              Productos, ventas, movimientos, contactos y compras
+            </p>
           </div>
         </button>
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { Plus, Search, Pencil, Trash2, Phone, ShoppingBag, User } from 'lucide-vue-next'
-import type { Contact } from '@/types'
+import { Plus, Search, Pencil, Trash2, Phone, ShoppingBag, User, Truck } from 'lucide-vue-next'
+import type { Contact, ContactFormData, ContactType } from '@/types'
 import ContactFormModal from '@/components/contacts/ContactFormModal.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -15,6 +15,7 @@ const salesStore = useSalesStore()
 const appStore = useAppStore()
 
 const search = ref('')
+const typeFilter = ref<'all' | ContactType>('all')
 const showForm = ref(false)
 const editing = ref<Contact | null>(null)
 const showDeleteConfirm = ref(false)
@@ -39,12 +40,18 @@ const statsByContact = computed(() => {
   return map
 })
 
+function isSupplier(contact: Contact): boolean {
+  return contact.type === 'supplier'
+}
+
 const filteredContacts = computed(() => {
   const q = search.value.trim().toLowerCase()
-  if (!q) return contactsStore.contacts
-  return contactsStore.contacts.filter(
-    (c) => c.name.toLowerCase().includes(q) || c.phone?.toLowerCase().includes(q),
-  )
+  return contactsStore.contacts.filter((c) => {
+    if (typeFilter.value === 'supplier' && !isSupplier(c)) return false
+    if (typeFilter.value === 'customer' && isSupplier(c)) return false
+    if (!q) return true
+    return c.name.toLowerCase().includes(q) || c.phone?.toLowerCase().includes(q)
+  })
 })
 
 function openCreate() {
@@ -57,7 +64,7 @@ function openEdit(contact: Contact) {
   showForm.value = true
 }
 
-async function handleSave(data: { name: string; phone?: string; notes?: string }) {
+async function handleSave(data: ContactFormData) {
   try {
     if (editing.value) {
       await contactsStore.updateContact(editing.value.id, data)
@@ -93,14 +100,36 @@ async function handleDelete() {
 <template>
   <div class="space-y-6">
     <div class="flex flex-wrap items-center justify-between gap-3">
-      <div class="relative w-full max-w-xs">
-        <Search :size="16" class="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-        <input
-          v-model="search"
-          type="search"
-          placeholder="Buscar contacto..."
-          class="w-full rounded-lg border border-border bg-surface-raised py-2 pl-10 pr-4 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-        />
+      <div class="flex flex-wrap items-center gap-3">
+        <div class="relative w-full max-w-xs">
+          <Search :size="16" class="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+          <input
+            v-model="search"
+            type="search"
+            placeholder="Buscar contacto..."
+            class="w-full rounded-lg border border-border bg-surface-raised py-2 pl-10 pr-4 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+          />
+        </div>
+        <div class="inline-flex rounded-lg border border-border p-0.5">
+          <button
+            v-for="opt in [
+              { key: 'all', label: 'Todos' },
+              { key: 'customer', label: 'Clientes' },
+              { key: 'supplier', label: 'Proveedores' },
+            ]"
+            :key="opt.key"
+            type="button"
+            class="rounded-md px-3 py-1.5 text-sm transition"
+            :class="
+              typeFilter === opt.key
+                ? 'bg-accent/15 text-accent'
+                : 'text-zinc-400 hover:text-zinc-100'
+            "
+            @click="typeFilter = opt.key as 'all' | ContactType"
+          >
+            {{ opt.label }}
+          </button>
+        </div>
       </div>
       <button
         type="button"
@@ -122,11 +151,23 @@ async function handleDelete() {
       >
         <div class="flex items-start justify-between gap-3">
           <div class="flex min-w-0 items-start gap-3">
-            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
-              <User :size="18" />
+            <div
+              class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+              :class="isSupplier(contact) ? 'bg-amber-500/15 text-amber-500' : 'bg-accent/15 text-accent'"
+            >
+              <Truck v-if="isSupplier(contact)" :size="18" />
+              <User v-else :size="18" />
             </div>
             <div class="min-w-0">
-              <h3 class="truncate font-medium text-zinc-100">{{ contact.name }}</h3>
+              <div class="flex items-center gap-2">
+                <h3 class="truncate font-medium text-zinc-100">{{ contact.name }}</h3>
+                <span
+                  v-if="isSupplier(contact)"
+                  class="shrink-0 rounded-md bg-amber-500/15 px-1.5 py-0.5 text-xs font-medium text-amber-500"
+                >
+                  Proveedor
+                </span>
+              </div>
               <p
                 v-if="contact.phone"
                 class="mt-0.5 flex items-center gap-1.5 text-sm text-zinc-400"
@@ -159,7 +200,10 @@ async function handleDelete() {
           {{ contact.notes }}
         </p>
 
-        <div class="mt-4 flex items-center gap-4 border-t border-border pt-3 text-xs">
+        <div
+          v-if="!isSupplier(contact)"
+          class="mt-4 flex items-center gap-4 border-t border-border pt-3 text-xs"
+        >
           <span class="flex items-center gap-1.5 text-zinc-400">
             <ShoppingBag :size="13" />
             {{ statsByContact.get(contact.id)?.count ?? 0 }} compra(s)

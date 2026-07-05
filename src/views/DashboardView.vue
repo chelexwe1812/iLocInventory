@@ -7,24 +7,24 @@ import {
   AlertTriangle,
   DollarSign,
   TrendingUp,
-  ClipboardList,
+  Truck,
 } from 'lucide-vue-next'
 import KpiCard from '@/components/common/KpiCard.vue'
 import { useProductsStore } from '@/stores/products'
 import { useSalesStore } from '@/stores/sales'
-import { useOrdersStore } from '@/stores/orders'
+import { usePurchaseOrdersStore } from '@/stores/purchaseOrders'
 import { formatCurrency } from '@/utils/format'
 
 const router = useRouter()
 const productsStore = useProductsStore()
 const salesStore = useSalesStore()
-const ordersStore = useOrdersStore()
+const purchaseOrdersStore = usePurchaseOrdersStore()
 
 onMounted(async () => {
   await Promise.all([
     productsStore.loadProducts(),
     salesStore.loadSales(),
-    ordersStore.loadOrders(),
+    purchaseOrdersStore.loadPurchaseOrders(),
   ])
 })
 </script>
@@ -79,18 +79,21 @@ onMounted(async () => {
 
       <div class="rounded-xl border border-border bg-surface-raised p-6">
         <div class="mb-4 flex items-center justify-between">
-          <h2 class="text-sm font-medium text-zinc-300">Pedidos pendientes</h2>
-          <ClipboardList :size="18" class="text-warning" />
+          <h2 class="text-sm font-medium text-zinc-300">Compras por recibir</h2>
+          <Truck :size="18" class="text-amber-500" />
         </div>
         <p class="text-3xl font-semibold text-zinc-100">
-          {{ ordersStore.pendingOrders.length }}
+          {{ purchaseOrdersStore.openPurchaseOrders.length }}
+        </p>
+        <p class="mt-1 text-sm text-zinc-500">
+          {{ formatCurrency(purchaseOrdersStore.pendingPurchasesValue) }} en mercancía pendiente
         </p>
         <button
           type="button"
           class="mt-3 text-sm text-accent hover:underline"
-          @click="router.push('/pedidos')"
+          @click="router.push('/compras')"
         >
-          Ver pedidos →
+          Ver compras →
         </button>
       </div>
     </div>

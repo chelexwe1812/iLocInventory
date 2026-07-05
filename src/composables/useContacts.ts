@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import type { Contact, ContactFormData } from '@/types'
 import {
   deleteContact as dbDeleteContact,
@@ -20,10 +20,28 @@ export function useContacts() {
     }
   }
 
+  /** Contactos que no son proveedores (los proveedores no participan en ventas) */
+  const customers = computed(() => contacts.value.filter((c) => c.type !== 'supplier'))
+
+  const suppliers = computed(() => contacts.value.filter((c) => c.type === 'supplier'))
+
   function searchContacts(query: string): Contact[] {
     const q = query.trim().toLowerCase()
     if (!q) return []
     return contacts.value
+      .filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          c.phone?.toLowerCase().includes(q),
+      )
+      .slice(0, 10)
+  }
+
+  /** Búsqueda restringida a clientes: excluye proveedores del flujo de ventas */
+  function searchCustomers(query: string): Contact[] {
+    const q = query.trim().toLowerCase()
+    if (!q) return []
+    return customers.value
       .filter(
         (c) =>
           c.name.toLowerCase().includes(q) ||
@@ -41,6 +59,7 @@ export function useContacts() {
     const contact: Contact = {
       ...data,
       name: data.name.trim(),
+      type: data.type ?? 'customer',
       phone: data.phone?.trim() || undefined,
       notes: data.notes?.trim() || undefined,
       id: generateId(),
@@ -76,9 +95,12 @@ export function useContacts() {
 
   return {
     contacts,
+    customers,
+    suppliers,
     loading,
     loadContacts,
     searchContacts,
+    searchCustomers,
     getContactById,
     createContact,
     updateContact,

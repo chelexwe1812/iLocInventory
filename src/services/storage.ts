@@ -1,9 +1,18 @@
 import Dexie, { type Table } from 'dexie'
-import type { AppMeta, Contact, InventoryMovement, Order, Product, Sale, StoredFile } from '@/types'
+import type {
+  AppMeta,
+  Contact,
+  InventoryMovement,
+  Product,
+  PurchaseOrder,
+  Sale,
+  StoredFile,
+} from '@/types'
 
 const DB_NAME = 'iloc-inventory'
 const OPFS_ROOT = 'product-images'
 const META_SEEDED_KEY = 'seeded'
+const META_PO_COUNTER_KEY = 'po_counter'
 
 export type StorageBackend = 'opfs' | 'dexie'
 
@@ -11,8 +20,8 @@ class InventoryDatabase extends Dexie {
   products!: Table<Product, string>
   sales!: Table<Sale, string>
   inventoryMovements!: Table<InventoryMovement, string>
-  orders!: Table<Order, string>
   contacts!: Table<Contact, string>
+  purchaseOrders!: Table<PurchaseOrder, string>
   files!: Table<StoredFile, string>
   meta!: Table<AppMeta, string>
 
@@ -51,6 +60,25 @@ class InventoryDatabase extends Dexie {
       contacts: 'id, name, phone, updatedAt',
       files: 'path, createdAt',
       meta: 'key',
+    })
+    // v4: se elimina el módulo de pedidos (tabla orders) y se clasifica el
+    // contacto como cliente/proveedor (campo type, sin índice).
+    this.version(4)
+      .stores({
+        orders: null,
+        contacts: 'id, name, type, phone, updatedAt',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('contacts')
+          .toCollection()
+          .modify((c: Contact) => {
+            if (!c.type) c.type = 'customer'
+          })
+      })
+    // v5: módulo de pedidos de compra (reposición de inventario a proveedores).
+    this.version(5).stores({
+      purchaseOrders: 'id, code, date, supplierId, status, createdAt',
     })
   }
 }
@@ -153,24 +181,6 @@ export async function saveMovement(movement: InventoryMovement): Promise<void> {
   await db.inventoryMovements.put(movement)
 }
 
-// ─── Orders ─────────────────────────────────────────────────────────────────
-
-export async function getAllOrders(): Promise<Order[]> {
-  return db.orders.orderBy('createdAt').reverse().toArray()
-}
-
-export async function getOrderById(id: string): Promise<Order | undefined> {
-  return db.orders.get(id)
-}
-
-export async function saveOrder(order: Order): Promise<void> {
-  await db.orders.put(order)
-}
-
-export async function deleteOrder(id: string): Promise<void> {
-  await db.orders.delete(id)
-}
-
 // ─── Contacts ───────────────────────────────────────────────────────────────
 
 export async function getAllContacts(): Promise<Contact[]> {
@@ -187,6 +197,58 @@ export async function saveContact(contact: Contact): Promise<void> {
 
 export async function deleteContact(id: string): Promise<void> {
   await db.contacts.delete(id)
+}
+
+// ─── Purchase Orders ─────────────────────────────────────────────────────────
+
+export async function getAllPurchaseOrders(): Promise<PurchaseOrder[]> {
+  return db.purchaseOrders.orderBy('createdAt').reverse().toArray()
+}
+
+export async function getPurchaseOrderById(id: string): Promise<PurchaseOrder | undefined> {
+  return db.purchaseOrders.get(id)
+}
+
+export async function savePurchaseOrder(order: PurchaseOrder): Promise<void> {
+  await db.purchaseOrders.put(order)
+}
+
+export async function deletePurchaseOrder(id: string): Promise<void> {
+  await db.purchaseOrders.delete(id)
+}
+
+/** Genera el siguiente folio consecutivo de orden de compra (OC-0001, OC-0002, …) */
+export async function nextPurchaseOrderCode(): Promise<string> {
+  const next = Number((await getMeta(META_PO_COUNTER_KEY)) ?? '0') + 1
+  await setMeta(META_PO_COUNTER_KEY, String(next))
+  return `OC-${String(next).padStart(4, '0')}`
+}
+
+export interface ReceivePurchaseOrderData {
+  /** Orden con receivedQuantity/estado actualizados y vínculos de producto ya resueltos */
+  order: PurchaseOrder
+  /** Modelos nuevos a crear en el catálogo */
+  newProducts: Product[]
+  /** Incrementos de stock/costo para productos existentes */
+  stockUpdates: { productId: string; stock: number; cost: number }[]
+  /** Movimientos de entrada generados por la recepción */
+  movements: InventoryMovement[]
+}
+
+export async function executeReceivePurchaseOrder(data: ReceivePurchaseOrderData): Promise<void> {
+  const now = new Date().toISOString()
+  await db.transaction('rw', db.products, db.inventoryMovements, db.purchaseOrders, async () => {
+    for (const product of data.newProducts) {
+      await db.products.put(product)
+    }
+    for (const u of data.stockUpdates) {
+      await db.products.update(u.productId, { stock: u.stock, cost: u.cost, updatedAt: now })
+    }
+    for (const movement of data.movements) {
+      await db.inventoryMovements.put(movement)
+    }
+    await db.purchaseOrders.put(data.order)
+  })
 }
 
 // ─── File Storage (OPFS + Dexie fallback) ───────────────────────────────────
@@ -326,17 +388,17 @@ export interface ExportData {
   products: Product[]
   sales: Sale[]
   inventoryMovements: InventoryMovement[]
-  orders: Order[]
   contacts?: Contact[]
+  purchaseOrders?: PurchaseOrder[]
 }
 
 export async function exportAllData(): Promise<ExportData> {
-  const [products, sales, inventoryMovements, orders, contacts] = await Promise.all([
+  const [products, sales, inventoryMovements, contacts, purchaseOrders] = await Promise.all([
     db.products.toArray(),
     db.sales.toArray(),
     db.inventoryMovements.toArray(),
-    db.orders.toArray(),
     db.contacts.toArray(),
+    db.purchaseOrders.toArray(),
   ])
   return {
     version: 1,
@@ -344,8 +406,8 @@ export async function exportAllData(): Promise<ExportData> {
     products,
     sales,
     inventoryMovements,
-    orders,
     contacts,
+    purchaseOrders,
   }
 }
 
@@ -355,23 +417,23 @@ export async function importAllData(data: ExportData, replace = true): Promise<v
     db.products,
     db.sales,
     db.inventoryMovements,
-    db.orders,
     db.contacts,
+    db.purchaseOrders,
     async () => {
       if (replace) {
         await Promise.all([
           db.products.clear(),
           db.sales.clear(),
           db.inventoryMovements.clear(),
-          db.orders.clear(),
           db.contacts.clear(),
+          db.purchaseOrders.clear(),
         ])
       }
       await db.products.bulkPut(data.products)
       await db.sales.bulkPut(data.sales)
       await db.inventoryMovements.bulkPut(data.inventoryMovements)
-      await db.orders.bulkPut(data.orders)
       if (data.contacts?.length) await db.contacts.bulkPut(data.contacts)
+      if (data.purchaseOrders?.length) await db.purchaseOrders.bulkPut(data.purchaseOrders)
     },
   )
 }
@@ -379,17 +441,18 @@ export async function importAllData(data: ExportData, replace = true): Promise<v
 export async function clearAllData(): Promise<void> {
   await db.transaction(
     'rw',
-    [db.products, db.sales, db.inventoryMovements, db.orders, db.contacts, db.files],
+    [db.products, db.sales, db.inventoryMovements, db.contacts, db.purchaseOrders, db.files],
     async () => {
       await Promise.all([
         db.products.clear(),
         db.sales.clear(),
         db.inventoryMovements.clear(),
-        db.orders.clear(),
         db.contacts.clear(),
+        db.purchaseOrders.clear(),
         db.files.clear(),
       ])
     },
   )
   await db.meta.delete(META_SEEDED_KEY)
+  await db.meta.delete(META_PO_COUNTER_KEY)
 }

@@ -28,10 +28,10 @@ const router = createRouter({
       meta: { title: 'Ventas' },
     },
     {
-      path: '/pedidos',
-      name: 'orders',
-      component: () => import('@/views/OrdersView.vue'),
-      meta: { title: 'Pedidos' },
+      path: '/compras',
+      name: 'purchase-orders',
+      component: () => import('@/views/PurchaseOrdersView.vue'),
+      meta: { title: 'Pedidos de Compra' },
     },
     {
       path: '/contactos',

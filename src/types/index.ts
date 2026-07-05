@@ -15,7 +15,6 @@ export type PaymentMethod =
   | 'otro'
 export type DiscountType = 'percent' | 'fixed'
 export type MovementType = 'in' | 'out' | 'adjustment'
-export type OrderStatus = 'pending' | 'completed' | 'cancelled'
 
 export interface Product {
   id: string
@@ -81,9 +80,13 @@ export interface SaleReturn {
   notes?: string
 }
 
+export type ContactType = 'customer' | 'supplier'
+
 export interface Contact {
   id: string
   name: string
+  /** Clasificación del contacto: cliente (ventas) o proveedor (compras) */
+  type: ContactType
   phone?: string
   notes?: string
   createdAt: string
@@ -142,24 +145,53 @@ export interface InventoryMovement {
   notes?: string
 }
 
-export interface OrderItem {
+export type PurchaseOrderStatus = 'pending' | 'partial' | 'received' | 'cancelled'
+
+export interface PurchaseOrderItem {
+  /** Producto existente vinculado; ausente si es un modelo nuevo aún no catalogado */
   productId?: string
-  productName: string
+  brand: string
+  model: string
+  variant?: string
+  sku?: string
+  category: ProductCategory
+  condition: ProductCondition
+  /** Precio de venta sugerido; se usa al crear el producto si es un modelo nuevo */
+  price?: number
+  /** Cantidad solicitada al proveedor */
   quantity: number
+  /** Cantidad ya recibida e ingresada a inventario (para recepciones parciales) */
+  receivedQuantity: number
+  /** Costo unitario acordado con el proveedor */
+  unitCost: number
   notes?: string
 }
 
-export interface Order {
+export interface PurchaseOrder {
   id: string
+  /** Folio consecutivo, p. ej. OC-0001 */
+  code: string
   date: string
-  customerName: string
-  customerPhone?: string
-  items: OrderItem[]
-  status: OrderStatus
+  supplierId?: string
+  /** Nombre del proveedor (desnormalizado para conservar el historial) */
+  supplierName: string
+  items: PurchaseOrderItem[]
+  status: PurchaseOrderStatus
+  subtotal: number
+  total: number
+  /** Fecha estimada de entrega (YYYY-MM-DD) */
+  expectedDate?: string
   notes?: string
-  relatedSaleId?: string
   createdAt: string
   updatedAt: string
+}
+
+export interface PurchaseOrderFormData {
+  supplierId?: string
+  supplierName: string
+  expectedDate?: string
+  notes?: string
+  items: PurchaseOrderItem[]
 }
 
 export interface StoredFile {
