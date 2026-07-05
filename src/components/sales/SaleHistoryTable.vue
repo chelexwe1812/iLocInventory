@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import type { Sale } from '@/types'
-import { formatCurrency, formatDateTime } from '@/utils/format'
+import { formatCurrency, formatDate, formatDateTime } from '@/utils/format'
 import SalePdfButton from './SalePdfButton.vue'
 
 defineProps<{
   sales: Sale[]
+}>()
+
+const emit = defineEmits<{
+  select: [sale: Sale]
 }>()
 
 const paymentLabels: Record<string, string> = {
@@ -12,7 +16,13 @@ const paymentLabels: Record<string, string> = {
   tarjeta: 'Tarjeta',
   transferencia: 'Transferencia',
   canje: 'Equipo a cuenta',
+  credito: 'Crédito',
   otro: 'Otro',
+}
+
+function pendingBalance(sale: Sale): number {
+  if (sale.paymentMethod !== 'credito' || sale.creditPaid) return 0
+  return sale.creditBalance ?? 0
 }
 </script>
 
@@ -33,7 +43,9 @@ const paymentLabels: Record<string, string> = {
         <tr
           v-for="sale in sales"
           :key="sale.id"
-          class="transition hover:bg-surface-overlay/50"
+          class="cursor-pointer transition hover:bg-surface-overlay/50"
+          :class="{ 'bg-warning/5': pendingBalance(sale) > 0 }"
+          @click="emit('select', sale)"
         >
           <td class="px-4 py-3 text-zinc-300">{{ formatDateTime(sale.date) }}</td>
           <td class="px-4 py-3">
@@ -42,14 +54,25 @@ const paymentLabels: Record<string, string> = {
           </td>
           <td class="px-4 py-3 text-zinc-400">{{ sale.items.length }} producto(s)</td>
           <td class="px-4 py-3">
-            <span class="rounded-md bg-surface-overlay px-2 py-0.5 text-xs text-zinc-300">
+            <span
+              class="rounded-md px-2 py-0.5 text-xs"
+              :class="
+                pendingBalance(sale) > 0
+                  ? 'bg-warning/15 text-warning'
+                  : 'bg-surface-overlay text-zinc-300'
+              "
+            >
               {{ paymentLabels[sale.paymentMethod] }}
             </span>
+            <p v-if="pendingBalance(sale) > 0" class="mt-1 text-xs text-warning">
+              Saldo {{ formatCurrency(pendingBalance(sale)) }}
+              <template v-if="sale.creditDueDate"> · vence {{ formatDate(sale.creditDueDate) }}</template>
+            </p>
           </td>
           <td class="px-4 py-3 text-right font-medium text-zinc-100">
             {{ formatCurrency(sale.total) }}
           </td>
-          <td class="px-4 py-3 text-right">
+          <td class="px-4 py-3 text-right" @click.stop>
             <SalePdfButton :sale="sale" compact />
           </td>
         </tr>

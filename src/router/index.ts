@@ -19,13 +19,13 @@ const router = createRouter({
       path: '/ventas',
       name: 'sales',
       component: () => import('@/views/SalesView.vue'),
-      meta: { title: 'Ventas' },
+      meta: { title: 'Nueva Venta' },
     },
     {
       path: '/ventas/historial',
       name: 'sales-history',
       component: () => import('@/views/SalesHistoryView.vue'),
-      meta: { title: 'Historial de Ventas' },
+      meta: { title: 'Ventas' },
     },
     {
       path: '/pedidos',

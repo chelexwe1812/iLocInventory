@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import type { Sale } from '@/types'
-import { formatCurrency, formatDateTime } from '@/utils/format'
+import { formatCurrency, formatDate, formatDateTime } from '@/utils/format'
 
 const STORE_NAME = 'iLoc — Celulares y Accesorios'
 const STORE_PHONE = 'Tel: (55) 1234-5678'
@@ -11,6 +11,7 @@ const PAYMENT_LABELS: Record<string, string> = {
   tarjeta: 'Tarjeta',
   transferencia: 'Transferencia',
   canje: 'Equipo a cuenta',
+  credito: 'Crédito',
   otro: 'Otro',
 }
 
@@ -125,6 +126,26 @@ export function generateSaleReceipt(sale: Sale): jsPDF {
       align: 'right',
     })
     y += 6
+  }
+
+  if (sale.paymentMethod === 'credito' && sale.creditBalance !== undefined) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.text('Abono inicial:', 5, y)
+    doc.text(formatCurrency(sale.creditDownPayment ?? 0), pageWidth - 5, y, { align: 'right' })
+    y += 5
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.text('Saldo pendiente:', 5, y)
+    doc.text(formatCurrency(sale.creditBalance), pageWidth - 5, y, { align: 'right' })
+    y += 5
+    if (sale.creditDueDate) {
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8)
+      doc.text(`Pago final: ${formatDate(sale.creditDueDate)}`, 5, y)
+      y += 5
+    }
+    y += 1
   }
 
   doc.setFont('helvetica', 'normal')

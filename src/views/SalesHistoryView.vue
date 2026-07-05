@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import type { SaleFilters } from '@/types'
+import type { Sale, SaleFilters } from '@/types'
 import SaleHistoryTable from '@/components/sales/SaleHistoryTable.vue'
+import SaleDetailSidebar from '@/components/sales/SaleDetailSidebar.vue'
+import SaleEditModal from '@/components/sales/SaleEditModal.vue'
+import CreditPaymentModal from '@/components/sales/CreditPaymentModal.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useSalesStore } from '@/stores/sales'
+import { formatCurrency } from '@/utils/format'
 import { format, subDays } from 'date-fns'
 
 const salesStore = useSalesStore()
@@ -15,6 +19,29 @@ const filters = ref<SaleFilters>({
 })
 
 const filteredSales = computed(() => salesStore.filterSales(filters.value))
+
+const pendingSales = computed(() =>
+  filteredSales.value.filter(
+    (s) => s.paymentMethod === 'credito' && !s.creditPaid && (s.creditBalance ?? 0) > 0,
+  ),
+)
+const pendingTotal = computed(() =>
+  pendingSales.value.reduce((sum, s) => sum + (s.creditBalance ?? 0), 0),
+)
+
+const selectedSale = ref<Sale | null>(null)
+const detailOpen = ref(false)
+const editOpen = ref(false)
+const payOpen = ref(false)
+
+function openSale(sale: Sale) {
+  selectedSale.value = sale
+  detailOpen.value = true
+}
+
+function onSaleSaved(updated: Sale) {
+  selectedSale.value = updated
+}
 
 onMounted(() => salesStore.loadSales())
 </script>
@@ -44,9 +71,23 @@ onMounted(() => salesStore.loadSales())
       </div>
     </div>
 
-    <p class="text-sm text-zinc-500">{{ filteredSales.length }} venta(s)</p>
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+      <p class="text-sm text-zinc-500">{{ filteredSales.length }} venta(s)</p>
+      <p v-if="pendingSales.length > 0" class="text-sm text-warning">
+        {{ pendingSales.length }} con saldo pendiente · {{ formatCurrency(pendingTotal) }} por cobrar
+      </p>
+    </div>
 
     <LoadingSpinner v-if="salesStore.loading" label="Cargando ventas..." />
-    <SaleHistoryTable v-else :sales="filteredSales" />
+    <SaleHistoryTable v-else :sales="filteredSales" @select="openSale" />
+
+    <SaleDetailSidebar
+      v-model="detailOpen"
+      :sale="selectedSale"
+      @edit="editOpen = true"
+      @pay="payOpen = true"
+    />
+    <SaleEditModal v-model="editOpen" :sale="selectedSale" @saved="onSaleSaved" />
+    <CreditPaymentModal v-model="payOpen" :sale="selectedSale" @saved="onSaleSaved" />
   </div>
 </template>

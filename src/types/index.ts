@@ -6,7 +6,13 @@ export type ProductCategory =
   | 'accesorio'
   | 'otro'
 export type ProductCondition = 'nuevo' | 'segunda_mano'
-export type PaymentMethod = 'efectivo' | 'tarjeta' | 'transferencia' | 'canje' | 'otro'
+export type PaymentMethod =
+  | 'efectivo'
+  | 'tarjeta'
+  | 'transferencia'
+  | 'canje'
+  | 'credito'
+  | 'otro'
 export type DiscountType = 'percent' | 'fixed'
 export type MovementType = 'in' | 'out' | 'adjustment'
 export type OrderStatus = 'pending' | 'completed' | 'cancelled'
@@ -78,6 +84,16 @@ export interface Sale {
   tradeInItems?: TradeInItem[]
   /** Valor total acordado del canje, que reduce el saldo a pagar */
   tradeInValue?: number
+  /** Venta a crédito: abono inicial pagado al momento de la venta */
+  creditDownPayment?: number
+  /** Saldo pendiente por cobrar en una venta a crédito */
+  creditBalance?: number
+  /** Fecha acordada para el pago final (YYYY-MM-DD) */
+  creditDueDate?: string
+  /** Si el saldo a crédito ya fue liquidado */
+  creditPaid?: boolean
+  /** Abonos registrados después de la venta (para saldar el crédito) */
+  creditPayments?: { date: string; amount: number }[]
   notes?: string
   createdAt: string
 }

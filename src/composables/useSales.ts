@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import type { DiscountType, PaymentMethod, Product, Sale, SaleFilters, SaleItem } from '@/types'
-import { executeSaleTransaction, getAllSales } from '@/services/storage'
+import { executeSaleTransaction, getAllSales, saveSale } from '@/services/storage'
 import { generateId } from '@/utils/id'
 import { getConditionLabel } from '@/utils/product'
 import { isAfter, isBefore, parseISO, startOfDay, startOfWeek } from 'date-fns'
@@ -20,6 +20,11 @@ export interface TradeInEntry {
   quantity: number
   /** Valor acordado por unidad (crédito otorgado al cliente) */
   unitValue: number
+}
+
+/** Devuelve una copia plana (sin proxies reactivos) apta para IndexedDB. */
+function toPlainSale(sale: Sale): Sale {
+  return JSON.parse(JSON.stringify(sale))
 }
 
 export function useSales() {
@@ -127,6 +132,7 @@ export function useSales() {
     discount?: Discount | null,
     tradeInItems?: TradeInEntry[] | null,
     contactId?: string,
+    credit?: { downPayment: number; dueDate?: string } | null,
   ): Promise<Sale> {
     const validation = validateCart(cart)
     if (!validation.valid) throw new Error(validation.errors.join('\n'))
@@ -156,6 +162,13 @@ export function useSales() {
         : []
     const tradeInTotal = tradeIns.reduce((sum, t) => sum + (t.unitValue || 0) * t.quantity, 0)
 
+    const saleTotal = subtotal - discountAmount
+    const isCredit = paymentMethod === 'credito' && !!credit
+    const creditDownPayment = isCredit
+      ? Math.min(Math.max(credit!.downPayment || 0, 0), saleTotal)
+      : undefined
+    const creditBalance = isCredit ? saleTotal - creditDownPayment! : undefined
+
     const sale: Sale = {
       id: saleId,
       date: now,
@@ -180,6 +193,10 @@ export function useSales() {
           }))
         : undefined,
       tradeInValue: tradeInTotal > 0 ? tradeInTotal : undefined,
+      creditDownPayment,
+      creditBalance,
+      creditDueDate: isCredit ? credit!.dueDate : undefined,
+      creditPaid: isCredit ? creditBalance! <= 0 : undefined,
       notes,
       createdAt: now,
     }
@@ -224,6 +241,46 @@ export function useSales() {
     return sale
   }
 
+  /** Edita los datos de una venta ya registrada (precio, descuento, contacto…). */
+  async function updateSale(id: string, patch: Partial<Sale>): Promise<Sale> {
+    const existing = sales.value.find((s) => s.id === id)
+    if (!existing) throw new Error('Venta no encontrada')
+    // Copia plana: `existing` es un proxy reactivo y IndexedDB no puede clonarlo.
+    const updated: Sale = toPlainSale({ ...existing, ...patch })
+    await saveSale(updated)
+    await loadSales()
+    return updated
+  }
+
+  /**
+   * Registra un abono contra el saldo pendiente de una venta a crédito.
+   * Si queda saldo, `nextDueDate` actualiza la fecha del siguiente pago.
+   */
+  async function registerCreditPayment(
+    id: string,
+    amount: number,
+    nextDueDate?: string,
+  ): Promise<Sale> {
+    const existing = sales.value.find((s) => s.id === id)
+    if (!existing) throw new Error('Venta no encontrada')
+    const currentBalance = existing.creditBalance ?? 0
+    const applied = Math.min(Math.max(amount, 0), currentBalance)
+    const newBalance = currentBalance - applied
+    const updated: Sale = toPlainSale({
+      ...existing,
+      creditBalance: newBalance,
+      creditPaid: newBalance <= 0,
+      creditDueDate: newBalance > 0 && nextDueDate ? nextDueDate : existing.creditDueDate,
+      creditPayments: [
+        ...(existing.creditPayments ?? []),
+        { date: new Date().toISOString(), amount: applied },
+      ],
+    })
+    await saveSale(updated)
+    await loadSales()
+    return updated
+  }
+
   return {
     sales,
     loading,
@@ -239,5 +296,7 @@ export function useSales() {
     computeDiscountAmount,
     cartTotal,
     createSale,
+    updateSale,
+    registerCreditPayment,
   }
 }

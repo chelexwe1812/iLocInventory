@@ -7,7 +7,7 @@ import { useProductsStore } from '@/stores/products'
 import { useSalesStore } from '@/stores/sales'
 import { useContactsStore } from '@/stores/contacts'
 import { useAppStore } from '@/stores/app'
-import { formatCurrency } from '@/utils/format'
+import { formatCurrency, formatDate } from '@/utils/format'
 import ProductFormModal from '@/components/inventory/ProductFormModal.vue'
 import ContactFormModal from '@/components/contacts/ContactFormModal.vue'
 
@@ -89,6 +89,11 @@ const tradeInEntries = ref<TradeInEntry[]>([])
 const tradeInSearchQuery = ref('')
 const showProductForm = ref(false)
 
+// Venta a crédito (pagar después): abono inicial + saldo + fecha de pago final.
+const creditDownPayment = ref<number>(0)
+const creditDueDate = ref<string>('')
+const today = new Date().toISOString().slice(0, 10)
+
 const searchResults = computed(() => {
   if (!searchQuery.value.trim()) return []
   return productsStore.searchProducts(searchQuery.value).filter((p) => p.stock > 0)
@@ -138,6 +143,17 @@ const tradeInCredit = computed(() =>
   paymentMethod.value === 'canje' ? Math.min(tradeInTotal.value, total.value) : 0,
 )
 const amountDue = computed(() => total.value - tradeInCredit.value)
+
+const creditBalance = computed(() =>
+  paymentMethod.value === 'credito'
+    ? Math.max(total.value - (creditDownPayment.value || 0), 0)
+    : 0,
+)
+
+function onCreditDownPaymentInput(event: Event) {
+  const raw = Number((event.target as HTMLInputElement).value)
+  creditDownPayment.value = Number.isNaN(raw) ? 0 : Math.min(Math.max(raw, 0), total.value)
+}
 
 function addTradeInProduct(product: Product, unitValue = 0) {
   const existing = tradeInEntries.value.find((t) => t.product.id === product.id)
@@ -220,6 +236,14 @@ function goToStep2() {
 }
 
 async function confirmSale() {
+  if (!selectedContactId.value) {
+    appStore.showToast('Selecciona un contacto para la venta', 'error')
+    return
+  }
+  if (paymentMethod.value === 'credito' && !creditDueDate.value) {
+    appStore.showToast('Indica la fecha del pago final', 'error')
+    return
+  }
   processing.value = true
   try {
     const sale = await salesStore.createSale(
@@ -231,6 +255,9 @@ async function confirmSale() {
       discount.value,
       paymentMethod.value === 'canje' ? tradeInEntries.value : null,
       selectedContactId.value ?? undefined,
+      paymentMethod.value === 'credito'
+        ? { downPayment: creditDownPayment.value || 0, dueDate: creditDueDate.value || undefined }
+        : null,
     )
     await productsStore.loadProducts()
     appStore.showToast('Venta registrada correctamente', 'success')
@@ -256,6 +283,8 @@ function reset() {
   discountValue.value = 0
   tradeInEntries.value = []
   tradeInSearchQuery.value = ''
+  creditDownPayment.value = 0
+  creditDueDate.value = ''
 }
 
 const paymentMethods: { value: PaymentMethod; label: string }[] = [
@@ -263,6 +292,7 @@ const paymentMethods: { value: PaymentMethod; label: string }[] = [
   { value: 'tarjeta', label: 'Tarjeta' },
   { value: 'transferencia', label: 'Transferencia' },
   { value: 'canje', label: 'Equipo a cuenta' },
+  { value: 'credito', label: 'Crédito' },
   { value: 'otro', label: 'Otro' },
 ]
 </script>
@@ -490,7 +520,7 @@ const paymentMethods: { value: PaymentMethod; label: string }[] = [
     <div v-else class="space-y-6">
       <div class="rounded-xl border border-border bg-surface-raised p-6 space-y-4">
         <div class="flex items-center justify-between">
-          <h3 class="text-sm font-medium text-zinc-300">Contacto (opcional)</h3>
+          <h3 class="text-sm font-medium text-zinc-300">Contacto *</h3>
           <button
             type="button"
             class="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-xs text-zinc-300 transition hover:border-accent hover:text-accent"
@@ -556,7 +586,7 @@ const paymentMethods: { value: PaymentMethod; label: string }[] = [
             </button>
           </div>
           <p class="mt-1.5 text-xs text-zinc-500">
-            Asocia la venta a un contacto para llevar su historial de compras.
+            Requerido: asocia la venta a un contacto para llevar su historial de compras.
           </p>
         </div>
 
@@ -693,6 +723,38 @@ const paymentMethods: { value: PaymentMethod; label: string }[] = [
           </p>
         </div>
 
+        <div
+          v-if="paymentMethod === 'credito'"
+          class="space-y-3 rounded-lg border border-border bg-surface-overlay/40 p-4"
+        >
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="mb-1 block text-sm text-zinc-400">Abono inicial</label>
+              <div class="relative">
+                <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-zinc-500">$</span>
+                <input
+                  :value="creditDownPayment || ''"
+                  type="number"
+                  min="0"
+                  :max="total"
+                  inputmode="numeric"
+                  placeholder="0"
+                  class="no-spinner w-full rounded-lg border border-border bg-surface-raised py-2 pl-7 pr-3 text-sm text-zinc-100 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                  @input="onCreditDownPaymentInput"
+                />
+              </div>
+            </div>
+            <div>
+              <label class="mb-1 block text-sm text-zinc-400">Fecha de pago final *</label>
+              <input v-model="creditDueDate" type="date" :min="today" class="input-field" />
+            </div>
+          </div>
+          <div class="flex items-center justify-between rounded-lg bg-surface-raised px-3 py-2 text-sm">
+            <span class="text-zinc-400">Saldo pendiente</span>
+            <span class="font-semibold text-warning">{{ formatCurrency(creditBalance) }}</span>
+          </div>
+        </div>
+
         <div>
           <label class="mb-1 block text-sm text-zinc-400">Notas</label>
           <textarea v-model="notes" rows="2" class="input-field resize-none" />
@@ -735,6 +797,25 @@ const paymentMethods: { value: PaymentMethod; label: string }[] = [
             <div class="flex justify-between pt-1">
               <span class="font-medium text-zinc-300">Saldo a pagar</span>
               <span class="text-xl font-semibold text-accent">{{ formatCurrency(amountDue) }}</span>
+            </div>
+          </template>
+
+          <template v-else-if="paymentMethod === 'credito'">
+            <div class="flex justify-between text-sm">
+              <span class="text-zinc-400">Total</span>
+              <span class="text-zinc-300">{{ formatCurrency(total) }}</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-zinc-400">Abono inicial</span>
+              <span class="text-success">−{{ formatCurrency(Math.min(creditDownPayment || 0, total)) }}</span>
+            </div>
+            <div class="flex justify-between pt-1">
+              <span class="font-medium text-zinc-300">
+                Saldo pendiente<template v-if="creditDueDate">
+                  <span class="text-xs font-normal text-zinc-500">· vence {{ formatDate(creditDueDate) }}</span>
+                </template>
+              </span>
+              <span class="text-xl font-semibold text-warning">{{ formatCurrency(creditBalance) }}</span>
             </div>
           </template>
 

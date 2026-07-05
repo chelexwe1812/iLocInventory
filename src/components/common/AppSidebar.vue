@@ -25,7 +25,7 @@ const navItems = computed(() => [
   { name: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/' },
   { name: 'inventory', label: 'Inventario', icon: Package, path: '/inventario' },
   { name: 'sales', label: 'Nueva Venta', icon: ShoppingCart, path: '/ventas' },
-  { name: 'sales-history', label: 'Historial', icon: History, path: '/ventas/historial' },
+  { name: 'sales-history', label: 'Ventas', icon: History, path: '/ventas/historial' },
   {
     name: 'orders',
     label: 'Pedidos',
@@ -37,9 +37,8 @@ const navItems = computed(() => [
   { name: 'settings', label: 'Configuración', icon: Settings, path: '/configuracion' },
 ])
 
-function isActive(path: string): boolean {
-  if (path === '/') return route.path === '/'
-  return route.path.startsWith(path)
+function isActive(name: string): boolean {
+  return route.name === name
 }
 </script>
 
@@ -65,7 +64,7 @@ function isActive(path: string): boolean {
         :to="item.path"
         class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition"
         :class="
-          isActive(item.path)
+          isActive(item.name)
             ? 'bg-accent/15 text-accent'
             : 'text-zinc-400 hover:bg-surface-overlay hover:text-zinc-100'
         "
