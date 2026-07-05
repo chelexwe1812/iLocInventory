@@ -1,0 +1,41 @@
+<script setup lang="ts">
+import { CheckCircle, AlertCircle, Info } from 'lucide-vue-next'
+import { useAppStore } from '@/stores/app'
+import { storeToRefs } from 'pinia'
+
+const appStore = useAppStore()
+const { toastMessage, toastType } = storeToRefs(appStore)
+</script>
+
+<template>
+  <Teleport to="body">
+    <Transition name="toast">
+      <div
+        v-if="toastMessage"
+        class="fixed bottom-6 right-6 z-[60] flex items-center gap-3 rounded-lg border px-4 py-3 shadow-lg"
+        :class="{
+          'border-green-800 bg-green-950 text-green-200': toastType === 'success',
+          'border-red-800 bg-red-950 text-red-200': toastType === 'error',
+          'border-zinc-700 bg-surface-raised text-zinc-200': toastType === 'info',
+        }"
+      >
+        <CheckCircle v-if="toastType === 'success'" :size="18" />
+        <AlertCircle v-else-if="toastType === 'error'" :size="18" />
+        <Info v-else :size="18" />
+        <span class="text-sm">{{ toastMessage }}</span>
+      </div>
+    </Transition>
+  </Teleport>
+</template>
+
+<style scoped>
+.toast-enter-active,
+.toast-leave-active {
+  transition: all 0.3s ease;
+}
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translateY(12px);
+}
+</style>
