@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useStoreInfo } from '@/composables/useStoreInfo'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -49,7 +50,9 @@ const router = createRouter({
 })
 
 router.afterEach((to) => {
-  document.title = `${to.meta.title ?? 'iLoc'} — iLoc Inventory`
+  const { displayName } = useStoreInfo()
+  const storeName = displayName()
+  document.title = `${to.meta.title ?? storeName} — ${storeName}`
 })
 
 export default router

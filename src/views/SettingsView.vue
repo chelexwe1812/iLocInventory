@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { Download, Upload, Database, RefreshCw, Palette, Sun, Moon, Monitor, DollarSign } from 'lucide-vue-next'
+import { computed, ref, watch } from 'vue'
+import { Download, Upload, Database, RefreshCw, Palette, Sun, Moon, Monitor, DollarSign, Store, Save } from 'lucide-vue-next'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { useStorage } from '@/composables/useStorage'
 import { useTheme, type ThemePreference } from '@/composables/useTheme'
 import { useCurrency } from '@/composables/useCurrency'
+import { useStoreInfo } from '@/composables/useStoreInfo'
 import { useProductsStore } from '@/stores/products'
 import { useSalesStore } from '@/stores/sales'
 import { useAppStore } from '@/stores/app'
@@ -13,6 +14,50 @@ import type { ExportData } from '@/services/storage'
 const { backend, exportData, importData, resetData } = useStorage()
 const { preference, setTheme } = useTheme()
 const { exchangeRate, showUsd, setExchangeRate, setShowUsd } = useCurrency()
+const {
+  name: storeName,
+  description: storeDescription,
+  phone: storePhone,
+  address: storeAddress,
+  setName: setStoreName,
+  setDescription: setStoreDescription,
+  setPhone: setStorePhone,
+  setAddress: setStoreAddress,
+} = useStoreInfo()
+
+// Borrador editable de los datos de la tienda; se confirman al pulsar "Guardar".
+const storeDraft = ref({
+  name: storeName.value,
+  description: storeDescription.value,
+  phone: storePhone.value,
+  address: storeAddress.value,
+})
+
+// Re-sincroniza el borrador si los datos cambian desde fuera (p. ej. al importar).
+watch([storeName, storeDescription, storePhone, storeAddress], () => {
+  storeDraft.value = {
+    name: storeName.value,
+    description: storeDescription.value,
+    phone: storePhone.value,
+    address: storeAddress.value,
+  }
+})
+
+const storeDirty = computed(
+  () =>
+    storeDraft.value.name !== storeName.value ||
+    storeDraft.value.description !== storeDescription.value ||
+    storeDraft.value.phone !== storePhone.value ||
+    storeDraft.value.address !== storeAddress.value,
+)
+
+function saveStoreInfo() {
+  setStoreName(storeDraft.value.name.trim())
+  setStoreDescription(storeDraft.value.description.trim())
+  setStorePhone(storeDraft.value.phone.trim())
+  setStoreAddress(storeDraft.value.address.trim())
+  appStore.showToast('Datos de la tienda actualizados', 'success')
+}
 
 // Borrador editable del tipo de cambio; se confirma al salir del input.
 const rateDraft = ref(String(exchangeRate.value))
@@ -42,7 +87,14 @@ const importing = ref(false)
 async function handleExportJson() {
   try {
     const data = await exportData()
-    data.settings = { exchangeRate: exchangeRate.value, showUsd: showUsd.value }
+    data.settings = {
+      exchangeRate: exchangeRate.value,
+      showUsd: showUsd.value,
+      storeName: storeName.value,
+      storeDescription: storeDescription.value,
+      storePhone: storePhone.value,
+      storeAddress: storeAddress.value,
+    }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -94,6 +146,11 @@ async function handleImportJson(event: Event) {
     if (data.settings) {
       if (typeof data.settings.exchangeRate === 'number') setExchangeRate(data.settings.exchangeRate)
       if (typeof data.settings.showUsd === 'boolean') setShowUsd(data.settings.showUsd)
+      if (typeof data.settings.storeName === 'string') setStoreName(data.settings.storeName)
+      if (typeof data.settings.storeDescription === 'string')
+        setStoreDescription(data.settings.storeDescription)
+      if (typeof data.settings.storePhone === 'string') setStorePhone(data.settings.storePhone)
+      if (typeof data.settings.storeAddress === 'string') setStoreAddress(data.settings.storeAddress)
       rateDraft.value = String(exchangeRate.value)
     }
     await Promise.all([
@@ -125,6 +182,81 @@ async function handleReset() {
 
 <template>
   <div class="mx-auto max-w-2xl space-y-8">
+    <section class="rounded-xl border border-border bg-surface-raised p-6">
+      <div class="mb-4 flex items-center gap-3">
+        <Store :size="20" class="text-accent" />
+        <h2 class="text-sm font-medium text-zinc-300">Datos de la tienda</h2>
+      </div>
+      <p class="mb-4 text-sm text-zinc-500">
+        El nombre y la descripción se muestran en la parte superior izquierda. Todos estos datos
+        aparecen en el encabezado de los tickets de venta, notas de devolución y órdenes de compra.
+      </p>
+
+      <div class="space-y-4">
+        <div>
+          <label for="store-name" class="mb-1.5 block text-sm text-zinc-400">Nombre</label>
+          <input
+            id="store-name"
+            v-model="storeDraft.name"
+            type="text"
+            placeholder="iLoc Inventory"
+            class="w-full rounded-lg border border-border bg-surface-overlay px-3 py-2 text-sm text-zinc-200 outline-none focus:border-accent"
+            @keydown.enter="saveStoreInfo"
+          />
+        </div>
+
+        <div>
+          <label for="store-description" class="mb-1.5 block text-sm text-zinc-400">
+            Descripción
+          </label>
+          <input
+            id="store-description"
+            v-model="storeDraft.description"
+            type="text"
+            placeholder="Celulares y Accesorios"
+            class="w-full rounded-lg border border-border bg-surface-overlay px-3 py-2 text-sm text-zinc-200 outline-none focus:border-accent"
+            @keydown.enter="saveStoreInfo"
+          />
+        </div>
+
+        <div>
+          <label for="store-phone" class="mb-1.5 block text-sm text-zinc-400">Teléfono</label>
+          <input
+            id="store-phone"
+            v-model="storeDraft.phone"
+            type="tel"
+            placeholder="(55) 1234-5678"
+            class="w-full rounded-lg border border-border bg-surface-overlay px-3 py-2 text-sm text-zinc-200 outline-none focus:border-accent"
+            @keydown.enter="saveStoreInfo"
+          />
+        </div>
+
+        <div>
+          <label for="store-address" class="mb-1.5 block text-sm text-zinc-400">Dirección</label>
+          <input
+            id="store-address"
+            v-model="storeDraft.address"
+            type="text"
+            placeholder="Calle Falsa 123, La Paz"
+            class="w-full rounded-lg border border-border bg-surface-overlay px-3 py-2 text-sm text-zinc-200 outline-none focus:border-accent"
+            @keydown.enter="saveStoreInfo"
+          />
+        </div>
+
+        <div class="flex justify-end pt-1">
+          <button
+            type="button"
+            class="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-40"
+            :disabled="!storeDirty"
+            @click="saveStoreInfo"
+          >
+            <Save :size="16" />
+            Guardar cambios
+          </button>
+        </div>
+      </div>
+    </section>
+
     <section class="rounded-xl border border-border bg-surface-raised p-6">
       <div class="mb-4 flex items-center gap-3">
         <Palette :size="20" class="text-accent" />

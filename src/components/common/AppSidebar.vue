@@ -14,10 +14,12 @@ import {
 } from 'lucide-vue-next'
 import { useAppStore } from '@/stores/app'
 import { storeToRefs } from 'pinia'
+import { useStoreInfo } from '@/composables/useStoreInfo'
 
 const route = useRoute()
 const appStore = useAppStore()
 const { sidebarCollapsed } = storeToRefs(appStore)
+const { name: storeName, description: storeDescription } = useStoreInfo()
 
 const navItems = computed(() => [
   { name: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/' },
@@ -57,8 +59,8 @@ function isActive(name: string): boolean {
         <Smartphone :size="18" class="text-white" />
       </div>
       <div v-if="!sidebarCollapsed" class="min-w-0">
-        <p class="truncate text-sm font-semibold text-zinc-100">iLoc Inventory</p>
-        <p class="truncate text-xs text-zinc-500">Celulares y Accesorios</p>
+        <p class="truncate text-sm font-semibold text-zinc-100">{{ storeName || 'iLoc Inventory' }}</p>
+        <p v-if="storeDescription" class="truncate text-xs text-zinc-500">{{ storeDescription }}</p>
       </div>
     </div>
 

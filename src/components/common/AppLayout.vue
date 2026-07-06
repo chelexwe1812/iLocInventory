@@ -5,12 +5,14 @@ import AppSidebar from './AppSidebar.vue'
 import GlobalSearch from './GlobalSearch.vue'
 import ToastNotification from './ToastNotification.vue'
 import { useStorage } from '@/composables/useStorage'
+import { useStoreInfo } from '@/composables/useStoreInfo'
 import LoadingSpinner from './LoadingSpinner.vue'
 
 const route = useRoute()
 const { ready, loading } = useStorage()
+const { displayName } = useStoreInfo()
 
-const pageTitle = computed(() => (route.meta.title as string) ?? 'iLoc Inventory')
+const pageTitle = computed(() => (route.meta.title as string) ?? displayName())
 </script>
 
 <template>

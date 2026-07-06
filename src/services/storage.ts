@@ -385,6 +385,10 @@ export async function executeStockAdjustment(data: StockAdjustmentData): Promise
 export interface AppSettingsExport {
   exchangeRate?: number
   showUsd?: boolean
+  storeName?: string
+  storeDescription?: string
+  storePhone?: string
+  storeAddress?: string
 }
 
 export interface ExportData {

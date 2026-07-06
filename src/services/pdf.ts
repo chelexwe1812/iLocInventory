@@ -4,9 +4,7 @@ import type { PurchaseOrder, Sale, SaleReturn } from '@/types'
 import { formatCurrency, formatDate, formatDateTime } from '@/utils/format'
 import { CONDITION_LABELS } from '@/utils/product'
 import { useCurrency } from '@/composables/useCurrency'
-
-const STORE_NAME = 'iLoc — Celulares y Accesorios'
-const STORE_PHONE = 'Tel: (55) 1234-5678'
+import { useStoreInfo } from '@/composables/useStoreInfo'
 
 const PAYMENT_LABELS: Record<string, string> = {
   efectivo: 'Efectivo',
@@ -20,17 +18,25 @@ const PAYMENT_LABELS: Record<string, string> = {
 export function generateSaleReceipt(sale: Sale): jsPDF {
   const doc = new jsPDF({ unit: 'mm', format: [80, 200] })
   const pageWidth = doc.internal.pageSize.getWidth()
+  const store = useStoreInfo()
   let y = 10
 
   doc.setFontSize(12)
   doc.setFont('helvetica', 'bold')
-  doc.text(STORE_NAME, pageWidth / 2, y, { align: 'center' })
+  doc.text(store.displayName(), pageWidth / 2, y, { align: 'center' })
   y += 5
 
   doc.setFontSize(8)
   doc.setFont('helvetica', 'normal')
-  doc.text(STORE_PHONE, pageWidth / 2, y, { align: 'center' })
-  y += 8
+  if (store.address.value) {
+    doc.text(store.address.value, pageWidth / 2, y, { align: 'center', maxWidth: pageWidth - 10 })
+    y += 4
+  }
+  if (store.phone.value) {
+    doc.text(`Tel: ${store.phone.value}`, pageWidth / 2, y, { align: 'center' })
+    y += 4
+  }
+  y += 4
 
   doc.setFontSize(7)
   doc.text(`Ticket #${sale.id.slice(0, 8).toUpperCase()}`, 5, y)
@@ -192,13 +198,25 @@ const REFUND_LABELS: Record<string, string> = {
 export function generateReturnReceipt(sale: Sale, ret: SaleReturn): jsPDF {
   const doc = new jsPDF({ unit: 'mm', format: [80, 200] })
   const pageWidth = doc.internal.pageSize.getWidth()
+  const store = useStoreInfo()
   let y = 10
 
   doc.setFontSize(12)
   doc.setFont('helvetica', 'bold')
-  doc.text(STORE_NAME, pageWidth / 2, y, { align: 'center' })
+  doc.text(store.displayName(), pageWidth / 2, y, { align: 'center' })
   y += 5
+  doc.setFontSize(8)
+  doc.setFont('helvetica', 'normal')
+  if (store.address.value) {
+    doc.text(store.address.value, pageWidth / 2, y, { align: 'center', maxWidth: pageWidth - 10 })
+    y += 4
+  }
+  if (store.phone.value) {
+    doc.text(`Tel: ${store.phone.value}`, pageWidth / 2, y, { align: 'center' })
+    y += 4
+  }
   doc.setFontSize(9)
+  doc.setFont('helvetica', 'bold')
   doc.text('NOTA DE DEVOLUCIÓN', pageWidth / 2, y, { align: 'center' })
   y += 7
 
@@ -284,12 +302,13 @@ function purchaseItemName(item: PurchaseOrder['items'][number]): string {
 export function generatePurchaseOrder(order: PurchaseOrder): jsPDF {
   const doc = new jsPDF({ unit: 'mm', format: 'letter' })
   const pageWidth = doc.internal.pageSize.getWidth()
+  const store = useStoreInfo()
   const marginX = 15
   let y = 18
 
   doc.setFontSize(14)
   doc.setFont('helvetica', 'bold')
-  doc.text(STORE_NAME, marginX, y)
+  doc.text(store.displayName(), marginX, y)
 
   doc.setFontSize(16)
   doc.text('ORDEN DE COMPRA', pageWidth - marginX, y, { align: 'right' })
@@ -297,10 +316,17 @@ export function generatePurchaseOrder(order: PurchaseOrder): jsPDF {
   y += 5
   doc.setFontSize(9)
   doc.setFont('helvetica', 'normal')
-  doc.text(STORE_PHONE, marginX, y)
+  if (store.phone.value) doc.text(`Tel: ${store.phone.value}`, marginX, y)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(11)
   doc.text(order.code, pageWidth - marginX, y, { align: 'right' })
+
+  if (store.address.value) {
+    y += 5
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.text(store.address.value, marginX, y, { maxWidth: pageWidth - marginX * 2 - 40 })
+  }
 
   y += 8
   doc.setLineWidth(0.3)
