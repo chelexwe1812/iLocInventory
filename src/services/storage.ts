@@ -114,9 +114,32 @@ async function initOpfs(): Promise<boolean> {
   }
 }
 
+/**
+ * Solicita almacenamiento persistente al navegador para que los datos (IndexedDB
+ * y OPFS) no sean desalojados bajo presión de disco. Es la mejor garantía para
+ * que la base de datos local sobreviva reinicios y limpiezas automáticas.
+ */
+async function requestPersistentStorage(): Promise<void> {
+  try {
+    if (
+      typeof navigator !== 'undefined' &&
+      navigator.storage &&
+      typeof navigator.storage.persist === 'function' &&
+      typeof navigator.storage.persisted === 'function'
+    ) {
+      const already = await navigator.storage.persisted()
+      if (!already) await navigator.storage.persist()
+    }
+  } catch {
+    // No soportado: los datos siguen en IndexedDB, pero el navegador podría
+    // desalojarlos si el disco se llena. No es un error fatal.
+  }
+}
+
 export async function initStorage(): Promise<StorageBackend> {
   await db.open()
   await initOpfs()
+  await requestPersistentStorage()
   return storageBackend
 }
 
