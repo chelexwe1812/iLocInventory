@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Search, Plus, Minus, Trash2, ShoppingBag, User, X, ShoppingCart } from 'lucide-vue-next'
 import type { ContactFormData, DiscountType, PaymentMethod, Product, ProductFormData, Sale } from '@/types'
@@ -20,19 +20,34 @@ const appStore = useAppStore()
 const route = useRoute()
 const router = useRouter()
 
-onMounted(async () => {
+// Agrega al carrito el producto llegado desde el buscador global (?add=<id>).
+async function addProductFromQuery(addId: unknown) {
+  if (typeof addId !== 'string' || !addId) return
+  if (productsStore.products.length === 0) await productsStore.loadProducts()
+  const product = productsStore.getProductById(addId)
+  if (product && product.stock > 0) {
+    // Si venimos de una venta ya completada o en curso, arranca en el paso 1.
+    step.value = 1
+    addToCart(product)
+  } else {
+    appStore.showToast('El producto no está disponible', 'error')
+  }
+  router.replace({ query: {} })
+}
+
+onMounted(() => {
   contactsStore.loadContacts()
   if (salesStore.sales.length === 0) salesStore.loadSales()
-
-  // Producto llegado desde el buscador global (?add=<id>): lo agrega al carrito.
-  const addId = route.query.add
-  if (typeof addId === 'string' && addId) {
-    if (productsStore.products.length === 0) await productsStore.loadProducts()
-    const product = productsStore.getProductById(addId)
-    if (product && product.stock > 0) addToCart(product)
-    router.replace({ query: {} })
-  }
+  addProductFromQuery(route.query.add)
 })
+
+// Estando ya en la vista, reacciona cuando el buscador global agrega otro producto.
+watch(
+  () => route.query.add,
+  (addId) => {
+    if (addId) addProductFromQuery(addId)
+  },
+)
 
 const emit = defineEmits<{
   completed: [saleId: string]

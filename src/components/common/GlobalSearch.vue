@@ -46,7 +46,7 @@ function onBlur() {
 </script>
 
 <template>
-  <div class="relative w-full max-w-md">
+  <div class="relative w-full max-w-lg">
     <div class="relative">
       <Search
         :size="16"
@@ -65,42 +65,44 @@ function onBlur() {
 
     <div
       v-if="showResults && results.length > 0"
-      class="absolute top-full z-40 mt-1 w-full overflow-hidden rounded-lg border border-border bg-surface-raised shadow-xl"
+      class="absolute right-0 top-full z-40 mt-2 max-h-[min(70vh,28rem)] w-[28rem] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl border border-border bg-surface-raised shadow-2xl"
     >
       <button
         v-for="product in results"
         :key="product.id"
         type="button"
-        class="group flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-surface-overlay disabled:cursor-not-allowed disabled:opacity-50"
+        class="group flex w-full items-center gap-3.5 border-b border-border/60 px-4 py-3.5 text-left transition last:border-b-0 hover:bg-surface-overlay disabled:cursor-not-allowed disabled:opacity-50"
         :disabled="product.stock <= 0"
         :title="product.stock <= 0 ? 'Sin stock disponible' : 'Iniciar venta con este producto'"
         @mousedown.prevent="startSale(product.id)"
       >
-        <Package :size="16" class="shrink-0 text-zinc-500" />
+        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-overlay text-zinc-400 group-hover:text-accent">
+          <Package :size="20" />
+        </div>
         <div class="min-w-0 flex-1">
-          <p class="truncate text-sm text-zinc-100">
+          <p class="truncate text-[15px] font-medium text-zinc-100">
             {{ product.brand }} {{ product.model }}
-            <span v-if="product.variant" class="text-zinc-400">{{ product.variant }}</span>
+            <span v-if="product.variant" class="font-normal text-zinc-400">{{ product.variant }}</span>
           </p>
-          <p class="text-xs text-zinc-500">
+          <p class="mt-0.5 text-sm text-zinc-500">
             Stock: {{ product.stock }} · {{ formatCurrency(product.price) }}
           </p>
         </div>
         <span
           v-if="product.stock > 0"
-          class="flex shrink-0 items-center gap-1 text-xs text-accent opacity-0 transition group-hover:opacity-100"
+          class="flex shrink-0 items-center gap-1.5 rounded-lg border border-accent/40 px-2.5 py-1.5 text-sm font-medium text-accent opacity-0 transition group-hover:opacity-100"
         >
-          <ShoppingCart :size="14" />
+          <ShoppingCart :size="16" />
           Vender
         </span>
       </button>
       <button
         type="button"
-        class="flex w-full items-center gap-2 border-t border-border px-4 py-2 text-xs text-accent transition hover:bg-surface-overlay"
+        class="sticky bottom-0 flex w-full items-center justify-center gap-2 border-t border-border bg-surface-raised px-4 py-3 text-sm font-medium text-accent transition hover:bg-surface-overlay"
         @mousedown.prevent="goToNewSale"
       >
-        <ShoppingCart :size="14" />
-        Iniciar venta
+        <ShoppingCart :size="16" />
+        Nueva venta en blanco
       </button>
     </div>
   </div>
