@@ -4,6 +4,7 @@ import { registerSW } from 'virtual:pwa-register'
 import App from './App.vue'
 import router from './router'
 import { useStorage } from './composables/useStorage'
+import { useTheme } from './composables/useTheme'
 import './style.css'
 
 const app = createApp(App)
@@ -11,6 +12,9 @@ const pinia = createPinia()
 
 app.use(pinia)
 app.use(router)
+
+// Inicializa el tema (aplica preferencia guardada y escucha cambios del sistema).
+useTheme()
 
 const { initialize } = useStorage()
 initialize().then(() => {

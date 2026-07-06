@@ -1,17 +1,25 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { Download, Upload, Database, RefreshCw } from 'lucide-vue-next'
+import { Download, Upload, Database, RefreshCw, Palette, Sun, Moon, Monitor } from 'lucide-vue-next'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { useStorage } from '@/composables/useStorage'
+import { useTheme, type ThemePreference } from '@/composables/useTheme'
 import { useProductsStore } from '@/stores/products'
 import { useSalesStore } from '@/stores/sales'
 import { useAppStore } from '@/stores/app'
 import type { ExportData } from '@/services/storage'
 
 const { backend, exportData, importData, resetData } = useStorage()
+const { preference, setTheme } = useTheme()
 const productsStore = useProductsStore()
 const salesStore = useSalesStore()
 const appStore = useAppStore()
+
+const themeOptions: { value: ThemePreference; label: string; icon: typeof Sun }[] = [
+  { value: 'light', label: 'Claro', icon: Sun },
+  { value: 'dark', label: 'Oscuro', icon: Moon },
+  { value: 'system', label: 'Sistema', icon: Monitor },
+]
 
 const showResetConfirm = ref(false)
 const importing = ref(false)
@@ -96,6 +104,32 @@ async function handleReset() {
 
 <template>
   <div class="mx-auto max-w-2xl space-y-8">
+    <section class="rounded-xl border border-border bg-surface-raised p-6">
+      <div class="mb-4 flex items-center gap-3">
+        <Palette :size="20" class="text-accent" />
+        <h2 class="text-sm font-medium text-zinc-300">Apariencia</h2>
+      </div>
+      <p class="mb-4 text-sm text-zinc-500">Elige el tema de la interfaz.</p>
+      <div class="grid grid-cols-3 gap-3">
+        <button
+          v-for="option in themeOptions"
+          :key="option.value"
+          type="button"
+          class="flex flex-col items-center gap-2 rounded-lg border px-4 py-4 text-sm transition"
+          :class="
+            preference === option.value
+              ? 'border-accent bg-accent/10 text-accent'
+              : 'border-border text-zinc-400 hover:bg-surface-overlay hover:text-zinc-200'
+          "
+          :aria-pressed="preference === option.value"
+          @click="setTheme(option.value)"
+        >
+          <component :is="option.icon" :size="20" />
+          <span class="font-medium">{{ option.label }}</span>
+        </button>
+      </div>
+    </section>
+
     <section class="rounded-xl border border-border bg-surface-raised p-6">
       <div class="mb-4 flex items-center gap-3">
         <Database :size="20" class="text-accent" />

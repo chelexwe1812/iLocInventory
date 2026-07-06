@@ -1,5 +1,8 @@
 @import 'tailwindcss';
 
+/* Tema oscuro (por defecto). Los valores viven en @theme para que Tailwind
+   genere las utilidades como var(--color-*), lo que nos permite reasignarlas
+   por tema más abajo sin tocar los componentes. */
 @theme {
   --color-surface: #09090b;
   --color-surface-raised: #18181b;
@@ -12,9 +15,50 @@
   --color-danger: #ef4444;
 }
 
+:root {
+  color-scheme: dark;
+}
+
+/* Tema claro: reasigna los tokens semánticos y la rampa de grises `zinc`
+   (invertida, para que el texto siga siendo legible sobre fondo claro).
+   Como todas las utilidades de Tailwind v4 resuelven a var(--color-*),
+   este bloque cambia el aspecto de toda la app sin editar componentes. */
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --color-surface: #fafafa;
+  --color-surface-raised: #ffffff;
+  --color-surface-overlay: #f4f4f5;
+  --color-border: #e4e4e7;
+  --color-accent: #2563eb;
+  --color-accent-hover: #1d4ed8;
+
+  /* Rampa de texto invertida: 100 = más oscuro (texto principal),
+     600/700 = más claro (bordes y superficies sutiles). */
+  --color-zinc-100: #18181b;
+  --color-zinc-200: #27272a;
+  --color-zinc-300: #3f3f46;
+  --color-zinc-400: #52525b;
+  --color-zinc-500: #71717a;
+  --color-zinc-600: #a1a1aa;
+  --color-zinc-700: #e4e4e7;
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) transparent;
+}
+
+/* Transición suave al alternar el tema. */
+body,
+aside,
+section,
+header,
+.input-field {
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
 }
 
 body {
