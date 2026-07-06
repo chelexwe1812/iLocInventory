@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { Download, Upload, Database, RefreshCw, Palette, Sun, Moon, Monitor } from 'lucide-vue-next'
+import { Download, Upload, Database, RefreshCw, Palette, Sun, Moon, Monitor, DollarSign } from 'lucide-vue-next'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { useStorage } from '@/composables/useStorage'
 import { useTheme, type ThemePreference } from '@/composables/useTheme'
+import { useCurrency } from '@/composables/useCurrency'
 import { useProductsStore } from '@/stores/products'
 import { useSalesStore } from '@/stores/sales'
 import { useAppStore } from '@/stores/app'
@@ -11,6 +12,20 @@ import type { ExportData } from '@/services/storage'
 
 const { backend, exportData, importData, resetData } = useStorage()
 const { preference, setTheme } = useTheme()
+const { exchangeRate, showUsd, setExchangeRate, setShowUsd } = useCurrency()
+
+// Borrador editable del tipo de cambio; se confirma al salir del input.
+const rateDraft = ref(String(exchangeRate.value))
+
+function commitRate() {
+  const parsed = Number.parseFloat(rateDraft.value)
+  if (Number.isFinite(parsed) && parsed > 0) {
+    setExchangeRate(parsed)
+    rateDraft.value = String(parsed)
+  } else {
+    rateDraft.value = String(exchangeRate.value)
+  }
+}
 const productsStore = useProductsStore()
 const salesStore = useSalesStore()
 const appStore = useAppStore()
@@ -27,6 +42,7 @@ const importing = ref(false)
 async function handleExportJson() {
   try {
     const data = await exportData()
+    data.settings = { exchangeRate: exchangeRate.value, showUsd: showUsd.value }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -75,6 +91,11 @@ async function handleImportJson(event: Event) {
     const data = JSON.parse(text) as ExportData
     if (!data.version || !data.products) throw new Error('Formato inválido')
     await importData(data, true)
+    if (data.settings) {
+      if (typeof data.settings.exchangeRate === 'number') setExchangeRate(data.settings.exchangeRate)
+      if (typeof data.settings.showUsd === 'boolean') setShowUsd(data.settings.showUsd)
+      rateDraft.value = String(exchangeRate.value)
+    }
     await Promise.all([
       productsStore.loadProducts(),
       salesStore.loadSales(),
@@ -127,6 +148,60 @@ async function handleReset() {
           <component :is="option.icon" :size="20" />
           <span class="font-medium">{{ option.label }}</span>
         </button>
+      </div>
+    </section>
+
+    <section class="rounded-xl border border-border bg-surface-raised p-6">
+      <div class="mb-4 flex items-center gap-3">
+        <DollarSign :size="20" class="text-accent" />
+        <h2 class="text-sm font-medium text-zinc-300">Moneda</h2>
+      </div>
+      <p class="mb-4 text-sm text-zinc-500">
+        Todos los montos se registran en Bolivianos (Bs). Opcionalmente puedes mostrar su
+        equivalente en dólares usando un tipo de cambio configurable.
+      </p>
+
+      <div class="space-y-4">
+        <div>
+          <label for="exchange-rate" class="mb-1.5 block text-sm text-zinc-400">
+            Tipo de cambio actual
+          </label>
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-zinc-500">1 USD =</span>
+            <input
+              id="exchange-rate"
+              v-model="rateDraft"
+              type="number"
+              step="0.01"
+              min="0"
+              inputmode="decimal"
+              class="w-28 rounded-lg border border-border bg-surface-overlay px-3 py-2 text-sm text-zinc-200 outline-none focus:border-accent"
+              @blur="commitRate"
+              @keydown.enter="commitRate"
+            />
+            <span class="text-sm text-zinc-500">Bs</span>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-zinc-300">Mostrar equivalente en USD</p>
+            <p class="text-xs text-zinc-500">Añade el monto en dólares junto a los precios en Bs.</p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            :aria-checked="showUsd"
+            class="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition"
+            :class="showUsd ? 'bg-accent' : 'bg-surface-overlay border border-border'"
+            @click="setShowUsd(!showUsd)"
+          >
+            <span
+              class="inline-block h-4 w-4 transform rounded-full bg-white transition"
+              :class="showUsd ? 'translate-x-6' : 'translate-x-1'"
+            />
+          </button>
+        </div>
       </div>
     </section>
 

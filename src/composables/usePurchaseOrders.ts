@@ -15,6 +15,7 @@ import {
   savePurchaseOrder,
 } from '@/services/storage'
 import { generateId } from '@/utils/id'
+import { useCurrency } from '@/composables/useCurrency'
 
 /** Cantidades a recibir por índice de línea de la orden */
 export type ReceiptQuantities = Record<number, number>
@@ -89,6 +90,7 @@ export function usePurchaseOrders() {
   }
 
   async function createPurchaseOrder(data: PurchaseOrderFormData): Promise<PurchaseOrder> {
+    const { exchangeRate } = useCurrency()
     const now = new Date().toISOString()
     const items = data.items.map(normalizeItem)
     const { subtotal, total } = computeTotals(items)
@@ -103,6 +105,7 @@ export function usePurchaseOrders() {
       subtotal,
       total,
       expectedDate: data.expectedDate,
+      exchangeRate: exchangeRate.value,
       notes: data.notes,
       createdAt: now,
       updatedAt: now,

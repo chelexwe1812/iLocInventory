@@ -3,6 +3,7 @@ import autoTable from 'jspdf-autotable'
 import type { PurchaseOrder, Sale, SaleReturn } from '@/types'
 import { formatCurrency, formatDate, formatDateTime } from '@/utils/format'
 import { CONDITION_LABELS } from '@/utils/product'
+import { useCurrency } from '@/composables/useCurrency'
 
 const STORE_NAME = 'iLoc — Celulares y Accesorios'
 const STORE_PHONE = 'Tel: (55) 1234-5678'
@@ -97,7 +98,18 @@ export function generateSaleReceipt(sale: Sale): jsPDF {
   doc.setFontSize(10)
   doc.text('TOTAL:', 5, y)
   doc.text(formatCurrency(sale.total), pageWidth - 5, y, { align: 'right' })
-  y += 6
+  y += 5
+
+  const { showUsd, formatUsdEquivalent } = useCurrency()
+  if (showUsd.value) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.text(`≈ ${formatUsdEquivalent(sale.total, sale.exchangeRate)}`, pageWidth - 5, y, {
+      align: 'right',
+    })
+    y += 5
+  }
+  y += 1
 
   if (sale.tradeInValue && sale.tradeInValue > 0) {
     const credit = Math.min(sale.tradeInValue, sale.total)

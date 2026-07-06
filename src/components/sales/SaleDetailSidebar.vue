@@ -5,6 +5,7 @@ import type { Sale } from '@/types'
 import { formatCurrency, formatDate, formatDateTime } from '@/utils/format'
 import { downloadReturnReceipt } from '@/services/pdf'
 import SalePdfButton from './SalePdfButton.vue'
+import UsdEquivalent from '@/components/common/UsdEquivalent.vue'
 
 const props = defineProps<{
   sale: Sale | null
@@ -184,9 +185,12 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
                   <span class="text-zinc-400">Equipo a cuenta</span>
                   <span class="text-success">−{{ formatCurrency(Math.min(sale.tradeInValue ?? 0, sale.total)) }}</span>
                 </div>
-                <div class="flex justify-between border-t border-border pt-2">
+                <div class="flex items-baseline justify-between border-t border-border pt-2">
                   <span class="font-medium text-zinc-200">Total</span>
-                  <span class="text-lg font-semibold text-zinc-100">{{ formatCurrency(sale.total) }}</span>
+                  <span class="text-right">
+                    <span class="text-lg font-semibold text-zinc-100">{{ formatCurrency(sale.total) }}</span>
+                    <UsdEquivalent :bs="sale.total" :rate="sale.exchangeRate" class="block" />
+                  </span>
                 </div>
 
                 <!-- Saldo por canje -->

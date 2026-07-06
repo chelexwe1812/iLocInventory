@@ -10,6 +10,7 @@ import {
   Truck,
 } from 'lucide-vue-next'
 import KpiCard from '@/components/common/KpiCard.vue'
+import UsdEquivalent from '@/components/common/UsdEquivalent.vue'
 import { useProductsStore } from '@/stores/products'
 import { useSalesStore } from '@/stores/sales'
 import { usePurchaseOrdersStore } from '@/stores/purchaseOrders'
@@ -69,6 +70,7 @@ onMounted(async () => {
         <p class="text-3xl font-semibold text-zinc-100">
           {{ formatCurrency(salesStore.totalRevenue) }}
         </p>
+        <UsdEquivalent :bs="salesStore.totalRevenue" class="mt-0.5 block !text-sm" />
         <p class="mt-1 text-sm text-zinc-500">
           {{ salesStore.sales.length }} ventas registradas · ingreso neto
         </p>

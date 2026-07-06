@@ -19,6 +19,7 @@ import {
 } from '@/services/storage'
 import { generateId } from '@/utils/id'
 import { getConditionLabel } from '@/utils/product'
+import { useCurrency } from '@/composables/useCurrency'
 import { isAfter, isBefore, parseISO, startOfDay, startOfWeek } from 'date-fns'
 
 export interface CartItem {
@@ -164,6 +165,7 @@ export function useSales() {
     const validation = validateCart(cart)
     if (!validation.valid) throw new Error(validation.errors.join('\n'))
 
+    const { exchangeRate } = useCurrency()
     const now = new Date().toISOString()
     const saleId = generateId()
 
@@ -224,6 +226,7 @@ export function useSales() {
       creditBalance,
       creditDueDate: isCredit ? credit!.dueDate : undefined,
       creditPaid: isCredit ? creditBalance! <= 0 : undefined,
+      exchangeRate: exchangeRate.value,
       notes,
       createdAt: now,
     }

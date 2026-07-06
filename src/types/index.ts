@@ -130,6 +130,8 @@ export interface Sale {
   refundedTotal?: number
   /** Estado de devolución de la venta */
   returnStatus?: 'partial' | 'full'
+  /** Tipo de cambio (Bs por 1 USD) vigente al crear la venta; congela el equivalente en USD del histórico */
+  exchangeRate?: number
   notes?: string
   createdAt: string
 }
@@ -181,6 +183,8 @@ export interface PurchaseOrder {
   total: number
   /** Fecha estimada de entrega (YYYY-MM-DD) */
   expectedDate?: string
+  /** Tipo de cambio (Bs por 1 USD) vigente al crear la orden; congela el equivalente en USD del histórico */
+  exchangeRate?: number
   notes?: string
   createdAt: string
   updatedAt: string

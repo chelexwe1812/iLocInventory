@@ -382,6 +382,11 @@ export async function executeStockAdjustment(data: StockAdjustmentData): Promise
 
 // ─── Export / Import ────────────────────────────────────────────────────────
 
+export interface AppSettingsExport {
+  exchangeRate?: number
+  showUsd?: boolean
+}
+
 export interface ExportData {
   version: 1
   exportedAt: string
@@ -390,6 +395,7 @@ export interface ExportData {
   inventoryMovements: InventoryMovement[]
   contacts?: Contact[]
   purchaseOrders?: PurchaseOrder[]
+  settings?: AppSettingsExport
 }
 
 export async function exportAllData(): Promise<ExportData> {

@@ -12,6 +12,7 @@ import {
 } from 'lucide-vue-next'
 import type { Product, InventoryMovement } from '@/types'
 import { formatCurrency, formatDateTime } from '@/utils/format'
+import UsdEquivalent from '@/components/common/UsdEquivalent.vue'
 import { getFileUrl } from '@/services/storage'
 import { useInventoryStore } from '@/stores/inventory'
 import { CONDITION_LABELS } from '@/utils/product'
@@ -196,6 +197,7 @@ function detailRow(label: string, value: string | number | undefined | null) {
                   <p v-else class="mt-1 text-lg font-semibold text-zinc-100">
                     {{ formatCurrency(product.price) }}
                   </p>
+                  <UsdEquivalent v-if="product.price > 0" :bs="product.price" class="mt-0.5 block" />
                 </div>
                 <div class="rounded-lg bg-surface-overlay p-3">
                   <p class="text-xs text-zinc-500">Costo</p>

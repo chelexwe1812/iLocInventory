@@ -1,7 +1,15 @@
 export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('es-MX', {
+  return new Intl.NumberFormat('es-BO', {
     style: 'currency',
-    currency: 'MXN',
+    currency: 'BOB',
+  }).format(amount)
+}
+
+/** Formatea un monto ya expresado en dólares estadounidenses. */
+export function formatUsd(amount: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
   }).format(amount)
 }
 
