@@ -24,6 +24,7 @@ class InventoryDatabase extends Dexie {
   purchaseOrders!: Table<PurchaseOrder, string>
   files!: Table<StoredFile, string>
   meta!: Table<AppMeta, string>
+  backupFolder!: Table<BackupFolderRecord, string>
 
   constructor() {
     super(DB_NAME)
@@ -80,7 +81,17 @@ class InventoryDatabase extends Dexie {
     this.version(5).stores({
       purchaseOrders: 'id, code, date, supplierId, status, createdAt',
     })
+    // v6: carpeta elegida para respaldos en la nube (guarda el FileSystemHandle,
+    // que es clonable estructuralmente y persiste entre sesiones).
+    this.version(6).stores({
+      backupFolder: 'id',
+    })
   }
+}
+
+export interface BackupFolderRecord {
+  id: string
+  handle: FileSystemDirectoryHandle
 }
 
 export const db = new InventoryDatabase()
@@ -160,6 +171,23 @@ export async function isSeeded(): Promise<boolean> {
 
 export async function markSeeded(): Promise<void> {
   await setMeta(META_SEEDED_KEY, 'true')
+}
+
+// ─── Backup folder handle ─────────────────────────────────────────────────────
+
+const BACKUP_FOLDER_ID = 'dir'
+
+export async function saveBackupFolderHandle(handle: FileSystemDirectoryHandle): Promise<void> {
+  await db.backupFolder.put({ id: BACKUP_FOLDER_ID, handle })
+}
+
+export async function getBackupFolderHandle(): Promise<FileSystemDirectoryHandle | null> {
+  const row = await db.backupFolder.get(BACKUP_FOLDER_ID)
+  return row?.handle ?? null
+}
+
+export async function clearBackupFolderHandle(): Promise<void> {
+  await db.backupFolder.delete(BACKUP_FOLDER_ID)
 }
 
 // ─── Products ───────────────────────────────────────────────────────────────

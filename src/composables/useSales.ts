@@ -20,6 +20,7 @@ import {
 import { generateId } from '@/utils/id'
 import { getConditionLabel } from '@/utils/product'
 import { useCurrency } from '@/composables/useCurrency'
+import { useCloudBackup } from '@/composables/useCloudBackup'
 import { isAfter, isBefore, parseISO, startOfDay, startOfWeek } from 'date-fns'
 
 export interface CartItem {
@@ -268,6 +269,10 @@ export function useSales() {
       stockUpdates: [...stockUpdates, ...tradeInStockUpdates],
     })
     await loadSales()
+
+    // Respaldo automático en la nube (silencioso, no bloquea el flujo de venta).
+    void useCloudBackup().maybeAutoBackup()
+
     return sale
   }
 

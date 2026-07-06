@@ -1,17 +1,19 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { Download, Upload, Database, RefreshCw, Palette, Sun, Moon, Monitor, DollarSign, Store, Save } from 'lucide-vue-next'
+import { computed, onMounted, ref, watch } from 'vue'
+import { Download, Upload, Database, RefreshCw, Palette, Sun, Moon, Monitor, DollarSign, Store, Save, Cloud, FolderOpen } from 'lucide-vue-next'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { useStorage } from '@/composables/useStorage'
 import { useTheme, type ThemePreference } from '@/composables/useTheme'
 import { useCurrency } from '@/composables/useCurrency'
 import { useStoreInfo } from '@/composables/useStoreInfo'
+import { useCloudBackup, buildBackupData } from '@/composables/useCloudBackup'
+import { formatDateTime } from '@/utils/format'
 import { useProductsStore } from '@/stores/products'
 import { useSalesStore } from '@/stores/sales'
 import { useAppStore } from '@/stores/app'
 import type { ExportData } from '@/services/storage'
 
-const { backend, exportData, importData, resetData } = useStorage()
+const { backend, importData, resetData } = useStorage()
 const { preference, setTheme } = useTheme()
 const { exchangeRate, showUsd, setExchangeRate, setShowUsd } = useCurrency()
 const {
@@ -75,6 +77,65 @@ const productsStore = useProductsStore()
 const salesStore = useSalesStore()
 const appStore = useAppStore()
 
+// ─── Respaldo en la nube (carpeta sincronizada iCloud/Drive) ──────────────────
+const {
+  supported: cloudSupported,
+  folderName: cloudFolder,
+  autoBackupEnabled,
+  lastBackupAt,
+  init: initCloudBackup,
+  chooseFolder,
+  forgetFolder,
+  backupNow,
+  setAutoBackup,
+} = useCloudBackup()
+
+const backingUp = ref(false)
+
+onMounted(() => {
+  void initCloudBackup()
+})
+
+async function handleChooseFolder() {
+  const ok = await chooseFolder()
+  if (ok) appStore.showToast(`Carpeta de respaldo: ${cloudFolder.value}`, 'success')
+}
+
+async function handleForgetFolder() {
+  await forgetFolder()
+  setAutoBackup(false)
+  appStore.showToast('Carpeta de respaldo desvinculada', 'info')
+}
+
+async function handleBackupNow() {
+  backingUp.value = true
+  try {
+    const result = await backupNow()
+    if (result.ok) {
+      appStore.showToast('Respaldo guardado en la nube', 'success')
+    } else if (result.reason === 'no-folder') {
+      appStore.showToast('Primero elige una carpeta de respaldo', 'error')
+    } else if (result.reason === 'permission') {
+      appStore.showToast('Permiso denegado para escribir en la carpeta', 'error')
+    } else if (result.reason === 'unsupported') {
+      appStore.showToast('Este navegador no soporta respaldo automático', 'error')
+    } else {
+      appStore.showToast('Error al guardar el respaldo', 'error')
+    }
+  } finally {
+    backingUp.value = false
+  }
+}
+
+async function handleToggleAuto() {
+  if (!autoBackupEnabled.value && !cloudFolder.value) {
+    const ok = await chooseFolder()
+    if (!ok) return
+    appStore.showToast(`Carpeta de respaldo: ${cloudFolder.value}`, 'success')
+  }
+  setAutoBackup(!autoBackupEnabled.value)
+}
+
 const themeOptions: { value: ThemePreference; label: string; icon: typeof Sun }[] = [
   { value: 'light', label: 'Claro', icon: Sun },
   { value: 'dark', label: 'Oscuro', icon: Moon },
@@ -86,15 +147,7 @@ const importing = ref(false)
 
 async function handleExportJson() {
   try {
-    const data = await exportData()
-    data.settings = {
-      exchangeRate: exchangeRate.value,
-      showUsd: showUsd.value,
-      storeName: storeName.value,
-      storeDescription: storeDescription.value,
-      storePhone: storePhone.value,
-      storeAddress: storeAddress.value,
-    }
+    const data = await buildBackupData()
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -358,6 +411,90 @@ async function handleReset() {
           <dd class="text-success">100% offline</dd>
         </div>
       </dl>
+    </section>
+
+    <section class="rounded-xl border border-border bg-surface-raised p-6">
+      <div class="mb-4 flex items-center gap-3">
+        <Cloud :size="20" class="text-accent" />
+        <h2 class="text-sm font-medium text-zinc-300">Respaldo automático en la nube</h2>
+      </div>
+
+      <template v-if="cloudSupported">
+        <p class="mb-4 text-sm text-zinc-500">
+          Elige una carpeta que iCloud Drive (o Google Drive) sincronice. La app guardará ahí un
+          respaldo y la nube lo subirá sola. No incluye las fotos de productos.
+        </p>
+
+        <div class="space-y-4">
+          <div class="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface-overlay px-4 py-3">
+            <div class="min-w-0">
+              <p class="text-sm text-zinc-300">Carpeta de respaldo</p>
+              <p class="truncate text-xs" :class="cloudFolder ? 'text-accent' : 'text-zinc-500'">
+                {{ cloudFolder ? `📁 ${cloudFolder}` : 'Ninguna carpeta seleccionada' }}
+              </p>
+            </div>
+            <div class="flex shrink-0 items-center gap-2">
+              <button
+                v-if="cloudFolder"
+                type="button"
+                class="rounded-lg border border-border px-2.5 py-1.5 text-xs text-zinc-400 transition hover:bg-surface-raised hover:text-zinc-200"
+                @click="handleForgetFolder"
+              >
+                Quitar
+              </button>
+              <button
+                type="button"
+                class="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm text-zinc-300 transition hover:bg-surface-raised"
+                @click="handleChooseFolder"
+              >
+                <FolderOpen :size="16" class="text-accent" />
+                {{ cloudFolder ? 'Cambiar' : 'Elegir carpeta' }}
+              </button>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm text-zinc-300">Respaldar después de cada venta</p>
+              <p class="text-xs text-zinc-500">Guarda una copia automática al registrar cada venta.</p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              :aria-checked="autoBackupEnabled"
+              class="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition"
+              :class="autoBackupEnabled ? 'bg-accent' : 'bg-surface-overlay border border-border'"
+              @click="handleToggleAuto"
+            >
+              <span
+                class="inline-block h-4 w-4 transform rounded-full bg-white transition"
+                :class="autoBackupEnabled ? 'translate-x-6' : 'translate-x-1'"
+              />
+            </button>
+          </div>
+
+          <div class="flex items-center justify-between gap-3">
+            <p class="text-xs text-zinc-500">
+              {{ lastBackupAt ? `Último respaldo: ${formatDateTime(lastBackupAt)}` : 'Sin respaldos aún' }}
+            </p>
+            <button
+              type="button"
+              class="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-40"
+              :disabled="!cloudFolder || backingUp"
+              @click="handleBackupNow"
+            >
+              <Cloud :size="16" />
+              {{ backingUp ? 'Respaldando...' : 'Respaldar ahora' }}
+            </button>
+          </div>
+        </div>
+      </template>
+
+      <p v-else class="text-sm text-zinc-500">
+        Tu navegador no soporta el respaldo automático a una carpeta. Usa Google Chrome
+        (versión 86 o superior) para activarlo. Mientras tanto, puedes exportar el respaldo
+        manualmente más abajo.
+      </p>
     </section>
 
     <section class="rounded-xl border border-border bg-surface-raised p-6">
