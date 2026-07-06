@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { Search, Plus, Minus, Trash2, ShoppingBag, User, X, ShoppingCart } from 'lucide-vue-next'
-import type { ContactFormData, DiscountType, PaymentMethod, Product, ProductFormData } from '@/types'
+import type { ContactFormData, DiscountType, PaymentMethod, Product, ProductFormData, Sale } from '@/types'
 import type { CartItem, Discount, TradeInEntry } from '@/composables/useSales'
 import { useProductsStore } from '@/stores/products'
 import { useSalesStore } from '@/stores/sales'
@@ -10,15 +11,27 @@ import { useAppStore } from '@/stores/app'
 import { formatCurrency, formatDate } from '@/utils/format'
 import ProductFormModal from '@/components/inventory/ProductFormModal.vue'
 import ContactFormModal from '@/components/contacts/ContactFormModal.vue'
+import SaleCompletedModal from '@/components/sales/SaleCompletedModal.vue'
 
 const productsStore = useProductsStore()
 const salesStore = useSalesStore()
 const contactsStore = useContactsStore()
 const appStore = useAppStore()
+const route = useRoute()
+const router = useRouter()
 
-onMounted(() => {
+onMounted(async () => {
   contactsStore.loadContacts()
   if (salesStore.sales.length === 0) salesStore.loadSales()
+
+  // Producto llegado desde el buscador global (?add=<id>): lo agrega al carrito.
+  const addId = route.query.add
+  if (typeof addId === 'string' && addId) {
+    if (productsStore.products.length === 0) await productsStore.loadProducts()
+    const product = productsStore.getProductById(addId)
+    if (product && product.stock > 0) addToCart(product)
+    router.replace({ query: {} })
+  }
 })
 
 const emit = defineEmits<{
@@ -33,6 +46,10 @@ const customerPhone = ref('')
 const paymentMethod = ref<PaymentMethod>('efectivo')
 const notes = ref('')
 const processing = ref(false)
+
+// Venta recién registrada: alimenta el modal informativo con opción de PDF.
+const completedSale = ref<Sale | null>(null)
+const showCompletedModal = ref(false)
 
 // Contacto asociado a la venta (registro de compras por cliente).
 const selectedContactId = ref<string | null>(null)
@@ -261,6 +278,8 @@ async function confirmSale() {
     )
     await productsStore.loadProducts()
     appStore.showToast('Venta registrada correctamente', 'success')
+    completedSale.value = sale
+    showCompletedModal.value = true
     emit('completed', sale.id)
     reset()
   } catch (e) {
@@ -562,28 +581,30 @@ const paymentMethods: { value: PaymentMethod; label: string }[] = [
         </div>
 
         <!-- Buscar contacto existente -->
-        <div v-else class="relative">
-          <Search :size="16" class="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-          <input
-            v-model="contactSearchQuery"
-            type="search"
-            placeholder="Buscar contacto por nombre o teléfono..."
-            class="w-full rounded-lg border border-border bg-surface-raised py-2 pl-10 pr-4 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-          />
-          <div
-            v-if="contactResults.length > 0"
-            class="absolute top-full z-10 mt-1 w-full overflow-hidden rounded-lg border border-border bg-surface-raised shadow-xl"
-          >
-            <button
-              v-for="contact in contactResults"
-              :key="contact.id"
-              type="button"
-              class="flex w-full items-center justify-between px-4 py-2.5 text-left transition hover:bg-surface-overlay"
-              @click="selectContact(contact)"
+        <div v-else>
+          <div class="relative">
+            <Search :size="16" class="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+            <input
+              v-model="contactSearchQuery"
+              type="search"
+              placeholder="Buscar contacto por nombre o teléfono..."
+              class="w-full rounded-lg border border-border bg-surface-raised py-2 pl-10 pr-4 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+            />
+            <div
+              v-if="contactResults.length > 0"
+              class="absolute top-full z-10 mt-1 w-full overflow-hidden rounded-lg border border-border bg-surface-raised shadow-xl"
             >
-              <span class="text-sm text-zinc-100">{{ contact.name }}</span>
-              <span v-if="contact.phone" class="text-xs text-zinc-500">{{ contact.phone }}</span>
-            </button>
+              <button
+                v-for="contact in contactResults"
+                :key="contact.id"
+                type="button"
+                class="flex w-full items-center justify-between px-4 py-2.5 text-left transition hover:bg-surface-overlay"
+                @click="selectContact(contact)"
+              >
+                <span class="text-sm text-zinc-100">{{ contact.name }}</span>
+                <span v-if="contact.phone" class="text-xs text-zinc-500">{{ contact.phone }}</span>
+              </button>
+            </div>
           </div>
           <p class="mt-1.5 text-xs text-zinc-500">
             Requerido: asocia la venta a un contacto para llevar su historial de compras.
@@ -855,6 +876,8 @@ const paymentMethods: { value: PaymentMethod; label: string }[] = [
     />
 
     <ContactFormModal v-model="showContactForm" lock-customer @save="handleCreateContact" />
+
+    <SaleCompletedModal v-model="showCompletedModal" :sale="completedSale" />
   </div>
 </template>
 

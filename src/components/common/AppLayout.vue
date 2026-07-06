@@ -8,7 +8,7 @@ import { useStorage } from '@/composables/useStorage'
 import LoadingSpinner from './LoadingSpinner.vue'
 
 const route = useRoute()
-const { ready, loading, backend } = useStorage()
+const { ready, loading } = useStorage()
 
 const pageTitle = computed(() => (route.meta.title as string) ?? 'iLoc Inventory')
 </script>
@@ -28,12 +28,6 @@ const pageTitle = computed(() => (route.meta.title as string) ?? 'iLoc Inventory
         <h1 class="text-lg font-semibold text-zinc-100">{{ pageTitle }}</h1>
         <div class="flex items-center gap-4">
           <GlobalSearch />
-          <span
-            class="hidden rounded-md border border-border px-2 py-1 text-xs text-zinc-500 lg:inline"
-            :title="`Almacenamiento: ${backend.toUpperCase()}`"
-          >
-            {{ backend === 'opfs' ? 'OPFS' : 'IndexedDB' }}
-          </span>
         </div>
       </header>
 

@@ -36,9 +36,22 @@ function isActive(name: string): boolean {
 
 <template>
   <aside
-    class="flex h-screen shrink-0 flex-col border-r border-border bg-surface-raised transition-all duration-200"
+    class="relative flex h-screen shrink-0 flex-col border-r border-border bg-surface-raised transition-all duration-200"
     :class="sidebarCollapsed ? 'w-16' : 'w-60'"
   >
+    <button
+      type="button"
+      class="absolute -right-3 top-16 z-20 flex h-6 w-6 items-center justify-center rounded-full border border-border bg-surface-raised text-zinc-400 shadow-sm transition hover:border-accent hover:text-accent"
+      :title="sidebarCollapsed ? 'Expandir menú' : 'Minimizar menú'"
+      @click="appStore.toggleSidebar"
+    >
+      <ChevronLeft
+        :size="14"
+        class="transition-transform"
+        :class="sidebarCollapsed ? 'rotate-180' : ''"
+      />
+    </button>
+
     <div class="flex h-14 items-center gap-3 border-b border-border px-4">
       <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent">
         <Smartphone :size="18" class="text-white" />
@@ -66,17 +79,5 @@ function isActive(name: string): boolean {
         <span v-if="!sidebarCollapsed" class="flex-1">{{ item.label }}</span>
       </RouterLink>
     </nav>
-
-    <button
-      type="button"
-      class="m-3 flex items-center justify-center rounded-lg border border-border p-2 text-zinc-400 transition hover:bg-surface-overlay hover:text-zinc-100"
-      @click="appStore.toggleSidebar"
-    >
-      <ChevronLeft
-        :size="16"
-        class="transition-transform"
-        :class="sidebarCollapsed ? 'rotate-180' : ''"
-      />
-    </button>
   </aside>
 </template>

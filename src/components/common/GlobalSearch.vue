@@ -25,14 +25,16 @@ watch(query, (q) => {
   }
 })
 
-function goToProduct(id: string) {
-  router.push({ name: 'inventory', query: { highlight: id } })
+// Inicia una nueva venta con el producto ya agregado al carrito.
+function startSale(id: string) {
+  router.push({ name: 'sales', query: { add: id } })
   query.value = ''
   showResults.value = false
 }
 
-function goToInventory() {
-  router.push({ name: 'inventory', query: { q: query.value } })
+function goToNewSale() {
+  router.push({ name: 'sales' })
+  query.value = ''
   showResults.value = false
 }
 
@@ -53,11 +55,11 @@ function onBlur() {
       <input
         v-model="query"
         type="search"
-        placeholder="Buscar productos, SKU, IMEI..."
+        placeholder="Buscar productos"
         class="w-full rounded-lg border border-border bg-surface-overlay py-2 pl-9 pr-4 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
         @focus="query.length >= 2 && (showResults = true)"
         @blur="onBlur"
-        @keydown.enter="goToInventory"
+        @keydown.enter="goToNewSale"
       />
     </div>
 
@@ -69,8 +71,10 @@ function onBlur() {
         v-for="product in results"
         :key="product.id"
         type="button"
-        class="flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-surface-overlay"
-        @mousedown.prevent="goToProduct(product.id)"
+        class="group flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-surface-overlay disabled:cursor-not-allowed disabled:opacity-50"
+        :disabled="product.stock <= 0"
+        :title="product.stock <= 0 ? 'Sin stock disponible' : 'Iniciar venta con este producto'"
+        @mousedown.prevent="startSale(product.id)"
       >
         <Package :size="16" class="shrink-0 text-zinc-500" />
         <div class="min-w-0 flex-1">
@@ -82,14 +86,21 @@ function onBlur() {
             Stock: {{ product.stock }} · {{ formatCurrency(product.price) }}
           </p>
         </div>
+        <span
+          v-if="product.stock > 0"
+          class="flex shrink-0 items-center gap-1 text-xs text-accent opacity-0 transition group-hover:opacity-100"
+        >
+          <ShoppingCart :size="14" />
+          Vender
+        </span>
       </button>
       <button
         type="button"
         class="flex w-full items-center gap-2 border-t border-border px-4 py-2 text-xs text-accent transition hover:bg-surface-overlay"
-        @mousedown.prevent="goToInventory"
+        @mousedown.prevent="goToNewSale"
       >
         <ShoppingCart :size="14" />
-        Ver todos en inventario
+        Iniciar venta
       </button>
     </div>
   </div>

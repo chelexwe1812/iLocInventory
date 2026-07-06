@@ -1,0 +1,151 @@
+<script setup lang="ts">
+import { computed } from 'vue'
+import { CheckCircle2, FileDown } from 'lucide-vue-next'
+import type { PaymentMethod, Sale } from '@/types'
+import { formatCurrency, formatDateTime } from '@/utils/format'
+import { downloadSaleReceipt } from '@/services/pdf'
+import AppModal from '@/components/common/AppModal.vue'
+import UsdEquivalent from '@/components/common/UsdEquivalent.vue'
+
+const props = defineProps<{
+  sale: Sale | null
+}>()
+
+const open = defineModel<boolean>({ required: true })
+
+const PAYMENT_LABELS: Record<PaymentMethod, string> = {
+  efectivo: 'Efectivo',
+  tarjeta: 'Tarjeta',
+  transferencia: 'Transferencia',
+  canje: 'Equipo a cuenta',
+  credito: 'Crédito',
+  otro: 'Otro',
+}
+
+const ticketId = computed(() => props.sale?.id.slice(0, 8).toUpperCase() ?? '')
+
+const tradeInCredit = computed(() => {
+  if (!props.sale?.tradeInValue) return 0
+  return Math.min(props.sale.tradeInValue, props.sale.total)
+})
+
+function handleDownload() {
+  if (props.sale) downloadSaleReceipt(props.sale)
+}
+</script>
+
+<template>
+  <AppModal v-model="open" title="Venta registrada" size="md">
+    <div v-if="sale" class="space-y-5">
+      <!-- Encabezado de éxito -->
+      <div class="flex items-center gap-3">
+        <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-success/15 text-success">
+          <CheckCircle2 :size="24" />
+        </div>
+        <div class="min-w-0">
+          <p class="text-sm font-medium text-zinc-100">Ticket #{{ ticketId }}</p>
+          <p class="text-xs text-zinc-500">{{ formatDateTime(sale.date) }}</p>
+        </div>
+      </div>
+
+      <!-- Cliente y pago -->
+      <div class="grid grid-cols-2 gap-3 text-sm">
+        <div>
+          <p class="text-xs text-zinc-500">Cliente</p>
+          <p class="truncate text-zinc-200">{{ sale.customerName || '—' }}</p>
+          <p v-if="sale.customerPhone" class="text-xs text-zinc-400">{{ sale.customerPhone }}</p>
+        </div>
+        <div>
+          <p class="text-xs text-zinc-500">Método de pago</p>
+          <p class="text-zinc-200">{{ PAYMENT_LABELS[sale.paymentMethod] ?? sale.paymentMethod }}</p>
+        </div>
+      </div>
+
+      <!-- Productos -->
+      <div class="rounded-lg border border-border bg-surface-overlay/40">
+        <div class="divide-y divide-border">
+          <div
+            v-for="item in sale.items"
+            :key="item.productId"
+            class="flex items-center justify-between gap-3 px-3 py-2 text-sm"
+          >
+            <span class="min-w-0 flex-1 truncate text-zinc-200">
+              {{ item.productName }} <span class="text-zinc-500">× {{ item.quantity }}</span>
+            </span>
+            <span class="shrink-0 text-zinc-300">{{ formatCurrency(item.subtotal) }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Totales -->
+      <div class="space-y-1.5 border-t border-border pt-3 text-sm">
+        <div v-if="sale.subtotal !== undefined" class="flex justify-between">
+          <span class="text-zinc-400">Subtotal</span>
+          <span class="text-zinc-300">{{ formatCurrency(sale.subtotal) }}</span>
+        </div>
+        <div v-if="sale.discountAmount && sale.discountAmount > 0" class="flex justify-between">
+          <span class="text-zinc-400">
+            Descuento<template v-if="sale.discountType === 'percent'"> ({{ sale.discountValue }}%)</template>
+          </span>
+          <span class="text-success">−{{ formatCurrency(sale.discountAmount) }}</span>
+        </div>
+        <div v-if="tradeInCredit > 0" class="flex justify-between">
+          <span class="text-zinc-400">Equipo a cuenta</span>
+          <span class="text-success">−{{ formatCurrency(tradeInCredit) }}</span>
+        </div>
+        <div v-if="sale.paymentMethod === 'credito'" class="flex justify-between">
+          <span class="text-zinc-400">Abono inicial</span>
+          <span class="text-success">−{{ formatCurrency(sale.creditDownPayment ?? 0) }}</span>
+        </div>
+
+        <div class="flex items-baseline justify-between pt-1.5">
+          <span class="font-medium text-zinc-300">
+            {{ sale.paymentMethod === 'credito' ? 'Saldo pendiente' : 'Total' }}
+          </span>
+          <span class="flex flex-col items-end">
+            <span
+              class="text-xl font-semibold"
+              :class="sale.paymentMethod === 'credito' ? 'text-warning' : 'text-accent'"
+            >
+              {{
+                sale.paymentMethod === 'credito'
+                  ? formatCurrency(sale.creditBalance ?? 0)
+                  : formatCurrency(sale.total)
+              }}
+            </span>
+            <UsdEquivalent
+              :bs="sale.paymentMethod === 'credito' ? (sale.creditBalance ?? 0) : sale.total"
+              :rate="sale.exchangeRate"
+            />
+          </span>
+        </div>
+        <p
+          v-if="sale.paymentMethod === 'credito' && sale.creditDueDate"
+          class="text-right text-xs text-zinc-500"
+        >
+          Total {{ formatCurrency(sale.total) }} · vence {{ formatDateTime(sale.creditDueDate) }}
+        </p>
+      </div>
+    </div>
+
+    <template #footer>
+      <div class="flex items-center justify-end gap-2">
+        <button
+          type="button"
+          class="rounded-lg px-4 py-2 text-sm text-zinc-300 transition hover:bg-surface-overlay"
+          @click="open = false"
+        >
+          Cerrar
+        </button>
+        <button
+          type="button"
+          class="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-accent-hover"
+          @click="handleDownload"
+        >
+          <FileDown :size="16" />
+          Generar PDF
+        </button>
+      </div>
+    </template>
+  </AppModal>
+</template>
