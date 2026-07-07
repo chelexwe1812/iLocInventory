@@ -1,6 +1,23 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { Download, Upload, Database, RefreshCw, Palette, Sun, Moon, Monitor, DollarSign, Store, Save, Cloud, FolderOpen } from 'lucide-vue-next'
+import {
+  Download,
+  Upload,
+  Database,
+  RefreshCw,
+  Palette,
+  Sun,
+  Moon,
+  Monitor,
+  DollarSign,
+  Store,
+  Save,
+  Cloud,
+  FolderOpen,
+  LogOut,
+  Shield,
+  User,
+} from 'lucide-vue-next'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { useStorage } from '@/composables/useStorage'
 import { useTheme, type ThemePreference } from '@/composables/useTheme'
@@ -11,6 +28,11 @@ import { formatDateTime } from '@/utils/format'
 import { useProductsStore } from '@/stores/products'
 import { useSalesStore } from '@/stores/sales'
 import { useAppStore } from '@/stores/app'
+import { useAuth } from '@/composables/useAuth'
+import AppModal from '@/components/common/AppModal.vue'
+import PasswordInputForm from '@/components/auth/PasswordInputForm.vue'
+import { PASSWORD_REQUIREMENTS_HINT, USERNAME_REQUIREMENTS_HINT } from '@/services/auth'
+import UsernameInputForm from '@/components/auth/UsernameInputForm.vue'
 import type { ExportData } from '@/services/storage'
 
 const { backend, importData, resetData } = useStorage()
@@ -76,6 +98,110 @@ function commitRate() {
 const productsStore = useProductsStore()
 const salesStore = useSalesStore()
 const appStore = useAppStore()
+const { username, logout, updatePin, updateUsername } = useAuth()
+
+const showChangeUsernameModal = ref(false)
+const usernameDraft = ref('')
+const savingUsername = ref(false)
+
+const showChangePasswordModal = ref(false)
+const changePasswordStep = ref<'current' | 'new' | 'confirm'>('current')
+const changePasswordDraft = ref('')
+const changePasswordCurrent = ref('')
+const changePasswordNext = ref('')
+const changingPassword = ref(false)
+
+function resetChangePasswordFlow(): void {
+  changePasswordStep.value = 'current'
+  changePasswordDraft.value = ''
+  changePasswordCurrent.value = ''
+  changePasswordNext.value = ''
+  changingPassword.value = false
+}
+
+function openChangePasswordModal(): void {
+  resetChangePasswordFlow()
+  showChangePasswordModal.value = true
+}
+
+function closeChangePasswordModal(): void {
+  showChangePasswordModal.value = false
+  resetChangePasswordFlow()
+}
+
+async function submitChangePassword(value: string): Promise<void> {
+  if (changePasswordStep.value === 'current') {
+    changePasswordCurrent.value = value
+    changePasswordStep.value = 'new'
+    changePasswordDraft.value = ''
+    return
+  }
+
+  if (changePasswordStep.value === 'new') {
+    changePasswordNext.value = value
+    changePasswordStep.value = 'confirm'
+    changePasswordDraft.value = ''
+    return
+  }
+
+  if (value !== changePasswordNext.value) {
+    appStore.showToast('Las contraseñas nuevas no coinciden', 'error')
+    changePasswordStep.value = 'new'
+    changePasswordNext.value = ''
+    changePasswordDraft.value = ''
+    return
+  }
+
+  changingPassword.value = true
+  try {
+    const result = await updatePin(changePasswordCurrent.value, value)
+    if (result === 'invalid') {
+      appStore.showToast('Contraseña actual incorrecta', 'error')
+      resetChangePasswordFlow()
+      return
+    }
+    appStore.showToast('Contraseña actualizada', 'success')
+    closeChangePasswordModal()
+  } catch (e) {
+    appStore.showToast(
+      e instanceof Error ? e.message : 'No se pudo cambiar la contraseña',
+      'error',
+    )
+  } finally {
+    changingPassword.value = false
+  }
+}
+
+function openChangeUsernameModal(): void {
+  usernameDraft.value = username.value ?? ''
+  showChangeUsernameModal.value = true
+}
+
+function closeChangeUsernameModal(): void {
+  showChangeUsernameModal.value = false
+  usernameDraft.value = ''
+  savingUsername.value = false
+}
+
+async function submitUsernameChange(value: string): Promise<void> {
+  savingUsername.value = true
+  try {
+    await updateUsername(value)
+    appStore.showToast('Nombre de usuario actualizado', 'success')
+    closeChangeUsernameModal()
+  } catch (e) {
+    appStore.showToast(
+      e instanceof Error ? e.message : 'No se pudo actualizar el usuario',
+      'error',
+    )
+  } finally {
+    savingUsername.value = false
+  }
+}
+
+function handleLogout(): void {
+  logout()
+}
 
 // ─── Respaldo en la nube (carpeta sincronizada iCloud/Drive) ──────────────────
 const {
@@ -235,6 +361,53 @@ async function handleReset() {
 
 <template>
   <div class="mx-auto max-w-2xl space-y-8">
+    <section class="rounded-xl border border-border bg-surface-raised p-6">
+      <div class="mb-4 flex items-center gap-3">
+        <Shield :size="20" class="text-accent" />
+        <h2 class="text-sm font-medium text-zinc-300">Seguridad</h2>
+      </div>
+      <p class="mb-4 text-sm text-zinc-500">
+        Protege la app con un usuario y contraseña en este equipo. {{ PASSWORD_REQUIREMENTS_HINT }}
+        Al cerrar sesión, recargar o cerrar la pestaña volverá a pedir la contraseña.
+      </p>
+
+      <dl class="mb-4 space-y-2 rounded-lg border border-border bg-surface-overlay px-4 py-3 text-sm">
+        <div class="flex justify-between gap-4">
+          <dt class="text-zinc-500">Usuario</dt>
+          <dd class="text-right font-medium text-zinc-200">
+            {{ username ?? 'Sin configurar' }}
+          </dd>
+        </div>
+      </dl>
+
+      <div class="flex flex-wrap gap-3">
+        <button
+          type="button"
+          class="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm text-zinc-300 transition hover:bg-surface-overlay"
+          @click="openChangeUsernameModal"
+        >
+          <User :size="16" class="text-accent" />
+          Cambiar usuario
+        </button>
+        <button
+          type="button"
+          class="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm text-zinc-300 transition hover:bg-surface-overlay"
+          @click="openChangePasswordModal"
+        >
+          <Shield :size="16" class="text-accent" />
+          Cambiar contraseña
+        </button>
+        <button
+          type="button"
+          class="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm text-zinc-300 transition hover:bg-surface-overlay"
+          @click="handleLogout"
+        >
+          <LogOut :size="16" class="text-accent" />
+          Cerrar sesión
+        </button>
+      </div>
+    </section>
+
     <section class="rounded-xl border border-border bg-surface-raised p-6">
       <div class="mb-4 flex items-center gap-3">
         <Store :size="20" class="text-accent" />
@@ -565,5 +738,60 @@ async function handleReset() {
       variant="danger"
       @confirm="handleReset"
     />
+
+    <AppModal v-model="showChangeUsernameModal" title="Cambiar usuario" size="sm">
+      <p class="mb-4 text-sm text-zinc-500">{{ USERNAME_REQUIREMENTS_HINT }}</p>
+      <UsernameInputForm
+        v-model="usernameDraft"
+        submit-label="Guardar"
+        :busy="savingUsername"
+        input-id="settings-username"
+        @submit="submitUsernameChange"
+      />
+      <div class="mt-4 flex justify-end">
+        <button
+          type="button"
+          class="rounded-lg border border-border px-4 py-2 text-sm text-zinc-400 transition hover:bg-surface-overlay"
+          @click="closeChangeUsernameModal"
+        >
+          Cancelar
+        </button>
+      </div>
+    </AppModal>
+
+    <AppModal v-model="showChangePasswordModal" title="Cambiar contraseña" size="sm">
+      <p class="mb-4 text-sm text-zinc-500">
+        {{
+          changePasswordStep === 'current'
+            ? 'Escribe tu contraseña actual.'
+            : changePasswordStep === 'new'
+              ? `Elige una contraseña nueva. ${PASSWORD_REQUIREMENTS_HINT}`
+              : 'Confirma la contraseña nueva.'
+        }}
+      </p>
+      <PasswordInputForm
+        v-model="changePasswordDraft"
+        :label="
+          changePasswordStep === 'current'
+            ? 'Contraseña actual'
+            : changePasswordStep === 'new'
+              ? 'Contraseña nueva'
+              : 'Confirmar contraseña'
+        "
+        :submit-label="changePasswordStep === 'confirm' ? 'Guardar' : 'Continuar'"
+        :busy="changingPassword"
+        input-id="change-password"
+        @submit="submitChangePassword"
+      />
+      <div class="mt-4 flex justify-end">
+        <button
+          type="button"
+          class="rounded-lg border border-border px-4 py-2 text-sm text-zinc-400 transition hover:bg-surface-overlay"
+          @click="closeChangePasswordModal"
+        >
+          Cancelar
+        </button>
+      </div>
+    </AppModal>
   </div>
 </template>

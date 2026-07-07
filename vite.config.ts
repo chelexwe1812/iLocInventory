@@ -4,7 +4,13 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
 
+/** Nombre del repo en GitHub (chelexwe1812/iLocInventory). */
+const GITHUB_REPO = 'iLocInventory'
+const isGitHubPages = process.env.GITHUB_PAGES === 'true'
+const base = isGitHubPages ? `/${GITHUB_REPO}/` : '/'
+
 export default defineConfig({
+  base,
   plugins: [
     vue(),
     tailwindcss(),
@@ -19,7 +25,7 @@ export default defineConfig({
         background_color: '#09090b',
         display: 'standalone',
         orientation: 'landscape-primary',
-        start_url: '/',
+        start_url: base,
         icons: [
           {
             src: 'pwa-192x192.png',

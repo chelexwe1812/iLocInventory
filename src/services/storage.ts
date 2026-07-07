@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie'
+import { assertUnlocked, AUTH_META_KEY } from '@/services/authSession'
 import type {
   AppMeta,
   Contact,
@@ -162,6 +163,7 @@ export async function getMeta(key: string): Promise<string | undefined> {
 }
 
 export async function setMeta(key: string, value: string): Promise<void> {
+  if (key !== AUTH_META_KEY) assertUnlocked()
   await db.meta.put({ key, value })
 }
 
@@ -178,6 +180,7 @@ export async function markSeeded(): Promise<void> {
 const BACKUP_FOLDER_ID = 'dir'
 
 export async function saveBackupFolderHandle(handle: FileSystemDirectoryHandle): Promise<void> {
+  assertUnlocked()
   await db.backupFolder.put({ id: BACKUP_FOLDER_ID, handle })
 }
 
@@ -187,6 +190,7 @@ export async function getBackupFolderHandle(): Promise<FileSystemDirectoryHandle
 }
 
 export async function clearBackupFolderHandle(): Promise<void> {
+  assertUnlocked()
   await db.backupFolder.delete(BACKUP_FOLDER_ID)
 }
 
@@ -201,10 +205,12 @@ export async function getProductById(id: string): Promise<Product | undefined> {
 }
 
 export async function saveProduct(product: Product): Promise<void> {
+  assertUnlocked()
   await db.products.put(product)
 }
 
 export async function deleteProduct(id: string): Promise<void> {
+  assertUnlocked()
   await db.products.delete(id)
 }
 
@@ -219,6 +225,7 @@ export async function getSaleById(id: string): Promise<Sale | undefined> {
 }
 
 export async function saveSale(sale: Sale): Promise<void> {
+  assertUnlocked()
   await db.sales.put(sale)
 }
 
@@ -229,6 +236,7 @@ export async function getAllMovements(): Promise<InventoryMovement[]> {
 }
 
 export async function saveMovement(movement: InventoryMovement): Promise<void> {
+  assertUnlocked()
   await db.inventoryMovements.put(movement)
 }
 
@@ -243,10 +251,12 @@ export async function getContactById(id: string): Promise<Contact | undefined> {
 }
 
 export async function saveContact(contact: Contact): Promise<void> {
+  assertUnlocked()
   await db.contacts.put(contact)
 }
 
 export async function deleteContact(id: string): Promise<void> {
+  assertUnlocked()
   await db.contacts.delete(id)
 }
 
@@ -261,10 +271,12 @@ export async function getPurchaseOrderById(id: string): Promise<PurchaseOrder | 
 }
 
 export async function savePurchaseOrder(order: PurchaseOrder): Promise<void> {
+  assertUnlocked()
   await db.purchaseOrders.put(order)
 }
 
 export async function deletePurchaseOrder(id: string): Promise<void> {
+  assertUnlocked()
   await db.purchaseOrders.delete(id)
 }
 
@@ -287,6 +299,7 @@ export interface ReceivePurchaseOrderData {
 }
 
 export async function executeReceivePurchaseOrder(data: ReceivePurchaseOrderData): Promise<void> {
+  assertUnlocked()
   const now = new Date().toISOString()
   await db.transaction('rw', db.products, db.inventoryMovements, db.purchaseOrders, async () => {
     for (const product of data.newProducts) {
@@ -312,6 +325,7 @@ export async function saveFile(
   file: File,
   subfolder = 'products',
 ): Promise<string> {
+  assertUnlocked()
   const fileName = `${crypto.randomUUID()}-${sanitizeFileName(file.name)}`
   const path = `${subfolder}/${fileName}`
 
@@ -363,6 +377,7 @@ export async function getFileUrl(path: string): Promise<string | null> {
 }
 
 export async function deleteFile(path: string): Promise<void> {
+  assertUnlocked()
   if (storageBackend === 'opfs' && opfsRoot) {
     try {
       const parts = path.split('/')
@@ -388,6 +403,7 @@ export interface SaleTransactionData {
 }
 
 export async function executeSaleTransaction(data: SaleTransactionData): Promise<void> {
+  assertUnlocked()
   await db.transaction('rw', db.products, db.sales, db.inventoryMovements, async () => {
     for (const update of data.stockUpdates) {
       await db.products.update(update.productId, { stock: update.newStock })
@@ -407,6 +423,7 @@ export interface ReturnTransactionData {
 }
 
 export async function executeReturnTransaction(data: ReturnTransactionData): Promise<void> {
+  assertUnlocked()
   await db.transaction('rw', db.products, db.sales, db.inventoryMovements, async () => {
     for (const r of data.restock) {
       const product = await db.products.get(r.productId)
@@ -425,6 +442,7 @@ export interface StockAdjustmentData {
 }
 
 export async function executeStockAdjustment(data: StockAdjustmentData): Promise<void> {
+  assertUnlocked()
   await db.transaction('rw', db.products, db.inventoryMovements, async () => {
     await db.products.put(data.product)
     await db.inventoryMovements.put(data.movement)
@@ -473,6 +491,7 @@ export async function exportAllData(): Promise<ExportData> {
 }
 
 export async function importAllData(data: ExportData, replace = true): Promise<void> {
+  assertUnlocked()
   await db.transaction(
     'rw',
     db.products,
@@ -500,6 +519,7 @@ export async function importAllData(data: ExportData, replace = true): Promise<v
 }
 
 export async function clearAllData(): Promise<void> {
+  assertUnlocked()
   await db.transaction(
     'rw',
     [db.products, db.sales, db.inventoryMovements, db.contacts, db.purchaseOrders, db.files],
@@ -516,4 +536,5 @@ export async function clearAllData(): Promise<void> {
   )
   await db.meta.delete(META_SEEDED_KEY)
   await db.meta.delete(META_PO_COUNTER_KEY)
+  // Conserva la contraseña configurada aunque se restablezcan los datos de negocio.
 }

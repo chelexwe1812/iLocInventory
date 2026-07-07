@@ -11,8 +11,11 @@ import {
   History,
   Users,
   Truck,
+  User,
+  LogOut,
 } from 'lucide-vue-next'
 import { useAppStore } from '@/stores/app'
+import { useAuth } from '@/composables/useAuth'
 import { storeToRefs } from 'pinia'
 import { useStoreInfo } from '@/composables/useStoreInfo'
 
@@ -20,6 +23,7 @@ const route = useRoute()
 const appStore = useAppStore()
 const { sidebarCollapsed } = storeToRefs(appStore)
 const { name: storeName, description: storeDescription } = useStoreInfo()
+const { username, logout } = useAuth()
 
 const navItems = computed(() => [
   { name: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/' },
@@ -81,5 +85,24 @@ function isActive(name: string): boolean {
         <span v-if="!sidebarCollapsed" class="flex-1">{{ item.label }}</span>
       </RouterLink>
     </nav>
+
+    <div class="border-t border-border p-3">
+      <div
+        v-if="!sidebarCollapsed"
+        class="mb-2 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-zinc-400"
+      >
+        <User :size="16" class="shrink-0 text-accent" />
+        <span class="truncate">{{ username ?? 'Usuario' }}</span>
+      </div>
+      <button
+        type="button"
+        class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-400 transition hover:bg-surface-overlay hover:text-zinc-100"
+        :title="sidebarCollapsed ? 'Cerrar sesión' : undefined"
+        @click="logout"
+      >
+        <LogOut :size="18" class="shrink-0" />
+        <span v-if="!sidebarCollapsed">Cerrar sesión</span>
+      </button>
+    </div>
   </aside>
 </template>

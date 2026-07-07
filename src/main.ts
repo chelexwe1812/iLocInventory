@@ -3,6 +3,7 @@ import { createPinia } from 'pinia'
 import { registerSW } from 'virtual:pwa-register'
 import App from './App.vue'
 import router from './router'
+import { useAuth } from './composables/useAuth'
 import { useStorage } from './composables/useStorage'
 import { useTheme } from './composables/useTheme'
 import './style.css'
@@ -17,9 +18,13 @@ app.use(router)
 useTheme()
 
 const { initialize } = useStorage()
-initialize().then(() => {
-  app.mount('#app')
-})
+const { init: initAuth } = useAuth()
+
+initialize()
+  .then(() => initAuth())
+  .then(() => {
+    app.mount('#app')
+  })
 
 registerSW({
   onNeedRefresh() {
