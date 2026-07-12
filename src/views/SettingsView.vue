@@ -23,7 +23,11 @@ import { useStorage } from '@/composables/useStorage'
 import { useTheme, type ThemePreference } from '@/composables/useTheme'
 import { useCurrency } from '@/composables/useCurrency'
 import { useStoreInfo } from '@/composables/useStoreInfo'
-import { useCloudBackup, buildBackupData } from '@/composables/useCloudBackup'
+import {
+  useCloudBackup,
+  buildBackupData,
+  type BackupFailure,
+} from '@/composables/useCloudBackup'
 import { formatDateTime } from '@/utils/format'
 import { useProductsStore } from '@/stores/products'
 import { useSalesStore } from '@/stores/sales'
@@ -222,9 +226,33 @@ onMounted(() => {
   void initCloudBackup()
 })
 
+/** Traduce el motivo del fallo a un mensaje que diga qué hacer. */
+function reportBackupFailure(reason: BackupFailure | undefined): void {
+  if (reason === 'cancelled') return // cerró el selector: no hay nada que avisar
+  const messages: Record<string, string> = {
+    blocked:
+      'Chrome no permite esa carpeta. Elige una subcarpeta dentro de ella (p. ej. iCloud Drive › iLoc), no la raíz.',
+    permission: 'No se concedió permiso de escritura sobre la carpeta',
+    'no-folder': 'Primero elige una carpeta de respaldo',
+    unsupported: 'Este navegador no soporta el respaldo a una carpeta. Usa Google Chrome.',
+  }
+  appStore.showToast(messages[reason ?? 'error'] ?? 'No se pudo completar el respaldo', 'error')
+}
+
 async function handleChooseFolder() {
-  const ok = await chooseFolder()
-  if (ok) appStore.showToast(`Carpeta de respaldo: ${cloudFolder.value}`, 'success')
+  const result = await chooseFolder()
+  if (!result.ok) {
+    reportBackupFailure(result.reason)
+    return
+  }
+  if (result.persisted) {
+    appStore.showToast(`Carpeta de respaldo: ${cloudFolder.value}`, 'success')
+  } else {
+    appStore.showToast(
+      `Carpeta ${cloudFolder.value} lista, pero habrá que volver a elegirla al recargar`,
+      'info',
+    )
+  }
 }
 
 async function handleForgetFolder() {
@@ -239,14 +267,8 @@ async function handleBackupNow() {
     const result = await backupNow()
     if (result.ok) {
       appStore.showToast('Respaldo guardado en la nube', 'success')
-    } else if (result.reason === 'no-folder') {
-      appStore.showToast('Primero elige una carpeta de respaldo', 'error')
-    } else if (result.reason === 'permission') {
-      appStore.showToast('Permiso denegado para escribir en la carpeta', 'error')
-    } else if (result.reason === 'unsupported') {
-      appStore.showToast('Este navegador no soporta respaldo automático', 'error')
     } else {
-      appStore.showToast('Error al guardar el respaldo', 'error')
+      reportBackupFailure(result.reason)
     }
   } finally {
     backingUp.value = false
@@ -255,9 +277,8 @@ async function handleBackupNow() {
 
 async function handleToggleAuto() {
   if (!autoBackupEnabled.value && !cloudFolder.value) {
-    const ok = await chooseFolder()
-    if (!ok) return
-    appStore.showToast(`Carpeta de respaldo: ${cloudFolder.value}`, 'success')
+    await handleChooseFolder()
+    if (!cloudFolder.value) return
   }
   setAutoBackup(!autoBackupEnabled.value)
 }
@@ -593,9 +614,14 @@ async function handleReset() {
       </div>
 
       <template v-if="cloudSupported">
-        <p class="mb-4 text-sm text-zinc-500">
+        <p class="mb-2 text-sm text-zinc-500">
           Elige una carpeta que iCloud Drive (o Google Drive) sincronice. La app guardará ahí un
           respaldo y la nube lo subirá sola. No incluye las fotos de productos.
+        </p>
+        <p class="mb-4 text-xs text-zinc-500">
+          Tiene que ser una <span class="text-zinc-300">subcarpeta</span>: el navegador no deja
+          elegir Escritorio, Documentos, Descargas ni la raíz de iCloud Drive. Crea una dentro
+          (por ejemplo <span class="text-zinc-300">iCloud Drive › iLoc</span>) y elígela.
         </p>
 
         <div class="space-y-4">

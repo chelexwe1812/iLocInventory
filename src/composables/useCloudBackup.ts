@@ -65,10 +65,37 @@ async function verifyPermission(
   return false
 }
 
+export type BackupFailure =
+  | 'unsupported' // el navegador no tiene File System Access API
+  | 'no-folder' // aún no se ha elegido carpeta
+  | 'cancelled' // el usuario cerró el selector sin elegir
+  | 'blocked' // Chrome no deja usar esa carpeta (ver classifyPickerError)
+  | 'permission' // el usuario no concedió el acceso de escritura
+  | 'error'
+
 export interface BackupResult {
   ok: boolean
-  reason?: 'unsupported' | 'no-folder' | 'permission' | 'error'
+  reason?: BackupFailure
   error?: unknown
+  /** Solo en chooseFolder: la carpeta sirve, pero no se pudo recordar para la próxima sesión. */
+  persisted?: boolean
+}
+
+/**
+ * `showDirectoryPicker` lanza AbortError tanto si cierras el selector como si
+ * Chrome veta la carpeta (las raíces de iCloud Drive, Google Drive o cualquier
+ * ruta bajo ~/Library están en su lista negra). El mensaje es lo único que los
+ * distingue, así que lo miramos para no dar un error donde solo hubo cancelación.
+ */
+function classifyPickerError(error: unknown): BackupFailure {
+  if (error instanceof DOMException) {
+    if (error.name === 'AbortError') {
+      const blocked = /blocked|not allowed|system files|sensitive/i.test(error.message)
+      return blocked ? 'blocked' : 'cancelled'
+    }
+    if (error.name === 'SecurityError' || error.name === 'NotAllowedError') return 'permission'
+  }
+  return 'error'
 }
 
 export function useCloudBackup() {
@@ -88,26 +115,42 @@ export function useCloudBackup() {
     }
   }
 
-  /** Abre el selector para elegir la carpeta de iCloud/Drive. Requiere gesto de usuario. */
-  async function chooseFolder(): Promise<boolean> {
-    if (!supported || !window.showDirectoryPicker) return false
+  /** Abre el selector para elegir la carpeta de respaldo. Requiere gesto de usuario. */
+  async function chooseFolder(): Promise<BackupResult> {
+    if (!supported || !window.showDirectoryPicker) return { ok: false, reason: 'unsupported' }
+
+    let handle: FileSystemDirectoryHandle
     try {
-      const handle = await window.showDirectoryPicker({ mode: 'readwrite', id: 'iloc-backup' })
-      const granted = await verifyPermission(handle, true)
-      if (!granted) return false
+      handle = await window.showDirectoryPicker({ mode: 'readwrite', id: 'iloc-backup' })
+    } catch (error) {
+      return { ok: false, reason: classifyPickerError(error), error }
+    }
+
+    if (!(await verifyPermission(handle, true))) {
+      return { ok: false, reason: 'permission' }
+    }
+
+    // La carpeta ya es usable: la activamos antes de persistirla para que un fallo
+    // al guardarla en IndexedDB no deje el botón de respaldo deshabilitado.
+    dirHandle = handle
+    folderName.value = handle.name
+    initialized = true
+
+    try {
       await saveBackupFolderHandle(handle)
-      dirHandle = handle
-      folderName.value = handle.name
-      return true
-    } catch {
-      // el usuario canceló el selector
-      return false
+      return { ok: true, persisted: true }
+    } catch (error) {
+      return { ok: true, persisted: false, error }
     }
   }
 
   /** Deja de recordar la carpeta elegida. */
   async function forgetFolder(): Promise<void> {
-    await clearBackupFolderHandle()
+    try {
+      await clearBackupFolderHandle()
+    } catch {
+      // aunque no se pueda borrar de IndexedDB, la soltamos en memoria
+    }
     dirHandle = null
     folderName.value = null
   }
